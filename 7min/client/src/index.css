@@ -1,0 +1,152 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+:root {
+  font-family: 'Space Grotesk', 'Inter', system-ui, -apple-system, sans-serif;
+  color: #1f2533;
+  background-color: #f6f8fb;
+  line-height: 1.6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(88, 187, 255, 0.15), transparent 32%),
+    radial-gradient(circle at 80% 0%, rgba(126, 214, 165, 0.12), transparent 30%),
+    linear-gradient(180deg, #f9fbff 0%, #eef2f9 60%, #e8ecf5 100%);
+  color: #1f2533;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+#root {
+  width: 100%;
+}
+
+button,
+input,
+textarea {
+  font-family: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: 1px solid #2fa8cc;
+  border-radius: 12px;
+  padding: 0.65rem 1.1rem;
+  background: linear-gradient(120deg, #2fa8cc, #6ed7a6);
+  color: #0b1b2b;
+  font-weight: 700;
+  transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 22px rgba(47, 168, 204, 0.25);
+}
+
+button.ghost {
+  background: #f2f5fa;
+  border-color: #dbe3f0;
+  color: #1f2533;
+}
+
+input,
+textarea {
+  width: 100%;
+  background: #f8fbff;
+  border: 1px solid #d6deeb;
+  border-radius: 10px;
+  padding: 0.75rem 0.85rem;
+  color: #1f2533;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.95rem;
+  color: #4a5468;
+}
+
+textarea {
+  resize: vertical;
+}
+
+.eyebrow {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #1a87c6;
+  font-size: 0.75rem;
+  margin: 0;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0.2rem 0 0.6rem;
+}
+
+.badge {
+  background: #e7f4ff;
+  color: #1f4b7a;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+}
+
+.status {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  background: #e4f7ef;
+  border: 1px solid #b4e4c7;
+}
+
+.status.floating {
+  margin: 1rem auto;
+  max-width: 900px;
+}
+
+.inline {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: #1a87c6;
+  padding: 0;
+}
+
+.tag {
+  display: inline-block;
+  padding: 0.4rem 0.8rem;
+  background: #eef4fb;
+  border-radius: 999px;
+  border: 1px solid #d6deeb;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+}
+
+.lede {
+  color: #3b4556;
+  font-size: 1.05rem;
+  max-width: 56ch;
+}
