@@ -210,8 +210,8 @@ function App() {
       <div className="auth-hero">
         <div className="auth-overlay" />
         <div className="auth-card minimal">
-          <div className="tag">7 min studio</div>
-          <h1>{authMode === 'login' ? 'Logga in' : 'Skapa konto'}</h1>
+          <div className="tag">7 MIN STUDIO</div>
+          <h1>Logga in</h1>
           <p className="lede tiny">Snabb åtkomst till dina pass. Bara e-post och lösenord.</p>
 
           <form className="auth-form" onSubmit={handleAuthSubmit}>
