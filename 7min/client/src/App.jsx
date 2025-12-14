@@ -208,11 +208,9 @@ function App() {
   if (!user) {
     return (
       <div className="auth-hero">
-        <div className="auth-overlay" />
+        <div className="auth-title">7 MIN STUDIO</div>
         <div className="auth-card minimal">
-          <div className="tag">7 MIN STUDIO</div>
           <h1>Logga in</h1>
-          <p className="lede tiny">Snabb åtkomst till dina pass. Bara e-post och lösenord.</p>
 
           <form className="auth-form" onSubmit={handleAuthSubmit}>
             {authMode === 'register' && (
