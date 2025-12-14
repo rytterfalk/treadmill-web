@@ -362,10 +362,7 @@ app.get('/api/sessions/recent', authRequired, (req, res) => {
 });
 
 // Fallback för SPA - servera index.html för alla andra GET:ar som inte är /api
-app.get('*', (req, res) => {
-  if (req.path.startsWith('/api')) {
-    return res.status(404).json({ error: 'Not found' });
-  }
+app.get(/^(?!\/api).*/, (req, res) => {
   return res.sendFile(path.join(distPath, 'index.html'));
 });
 
