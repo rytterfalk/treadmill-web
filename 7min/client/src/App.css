@@ -315,6 +315,38 @@ button.tiny {
   font-weight: 600;
 }
 
+.audio-controls {
+  margin-top: 0.2rem;
+  padding: 0.65rem;
+  border: 1px dashed #cfe0f5;
+  border-radius: 10px;
+  background: #f8fbff;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.audio-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.audio-player {
+  width: 100%;
+}
+
+.mini-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.audio-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .equipment .chip-grid {
   display: flex;
   flex-wrap: wrap;

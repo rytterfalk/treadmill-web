@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const starterExercises = [
-  { title: 'Knäböj', durationSeconds: 30, restSeconds: 10, notes: '' },
-  { title: 'Armhävningar', durationSeconds: 30, restSeconds: 10, notes: '' },
+  { title: 'Knäböj', durationSeconds: 30, restSeconds: 10, notes: '', audioAssetId: null, audioUrl: null },
+  { title: 'Armhävningar', durationSeconds: 30, restSeconds: 10, notes: '', audioAssetId: null, audioUrl: null },
 ];
 
 function ProgramEditor({ prefill, onSave }) {
@@ -12,6 +12,11 @@ function ProgramEditor({ prefill, onSave }) {
   const [isPublic, setIsPublic] = useState(false);
   const [exercises, setExercises] = useState(starterExercises);
   const [draggingIdx, setDraggingIdx] = useState(null);
+  const [recordingIdx, setRecordingIdx] = useState(null);
+  const [status, setStatus] = useState('');
+  const mediaRecorderRef = useRef(null);
+  const mediaStreamRef = useRef(null);
+  const chunksRef = useRef([]);
 
   const prefillKey = useMemo(
     () => (prefill ? `${prefill.program?.id}-${prefill.exercises?.length}` : ''),
@@ -31,21 +36,27 @@ function ProgramEditor({ prefill, onSave }) {
             durationSeconds: ex.durationSeconds,
             restSeconds: ex.restSeconds,
             notes: ex.notes || '',
+            audioAssetId: ex.audioAssetId || null,
+            audioUrl: ex.audioUrl || null,
           }))
         : starterExercises
     );
   }, [prefillKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function updateExercise(index, field, value) {
+  function setExercisePatch(index, patch) {
     setExercises((list) =>
-      list.map((item, idx) => (idx === index ? { ...item, [field]: value } : item))
+      list.map((item, idx) => (idx === index ? { ...item, ...patch } : item))
     );
+  }
+
+  function updateExercise(index, field, value) {
+    setExercisePatch(index, { [field]: value });
   }
 
   function addExercise() {
     setExercises((list) => [
       ...list,
-      { title: 'Nytt moment', durationSeconds: 30, restSeconds: 10, notes: '' },
+      { title: 'Nytt moment', durationSeconds: 30, restSeconds: 10, notes: '', audioAssetId: null, audioUrl: null },
     ]);
   }
 
@@ -97,9 +108,86 @@ function ProgramEditor({ prefill, onSave }) {
       description,
       rounds: Number(rounds) || 1,
       isPublic,
-      exercises,
+      exercises: exercises.map((ex) => ({
+        title: ex.title,
+        durationSeconds: ex.durationSeconds,
+        restSeconds: ex.restSeconds,
+        notes: ex.notes,
+        audioAssetId: ex.audioAssetId || null,
+      })),
     });
   }
+
+  function stopStream() {
+    mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
+    mediaStreamRef.current = null;
+  }
+
+  function stopRecording() {
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== 'inactive') {
+      recorder.stop();
+    }
+  }
+
+  async function startRecording(index) {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setStatus('Din browser blockerar inspelning.');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+      chunksRef.current = [];
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      recorder.ondataavailable = (e) => {
+        if (e.data?.size) chunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        uploadAudio(index, blob);
+        stopStream();
+        setRecordingIdx(null);
+      };
+      recorder.start();
+      setRecordingIdx(index);
+    } catch (err) {
+      setStatus('Kunde inte starta inspelning. Kolla mikrofon-behörigheter.');
+    }
+  }
+
+  async function uploadAudio(index, blob) {
+    if (!blob.size) return;
+    setExercisePatch(index, { uploadingAudio: true });
+    try {
+      const form = new FormData();
+      form.append('file', blob, 'pause.webm');
+      form.append('type', 'audio');
+      const res = await fetch('/api/media', {
+        method: 'POST',
+        body: form,
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Kunde inte ladda upp ljudet');
+      setExercisePatch(index, {
+        audioAssetId: data.asset.id,
+        audioUrl: data.asset.url,
+        uploadingAudio: false,
+      });
+      setStatus('Ljud sparat!');
+    } catch (err) {
+      setExercisePatch(index, { uploadingAudio: false });
+      setStatus(err.message);
+    }
+  }
+
+  function clearAudio(index) {
+    setExercisePatch(index, { audioAssetId: null, audioUrl: null, uploadingAudio: false });
+  }
+
+  useEffect(() => () => stopStream(), []);
 
   return (
     <div>
@@ -215,11 +303,38 @@ function ProgramEditor({ prefill, onSave }) {
                       className="ghost tiny"
                       disabled={idx === exercises.length - 1}
                       onClick={() => moveExercise(idx, idx + 1)}
-                    >
-                      Ner
-                    </button>
+                      >
+                        Ner
+                      </button>
+                    </div>
                   </div>
-                </div>
+                  <div className="audio-controls">
+                    <div className="audio-header">
+                      <p className="mini-title">Paus-meddelande</p>
+                      {ex.uploadingAudio && <span className="badge">Laddar upp...</span>}
+                    </div>
+                    <div className="audio-actions">
+                      {recordingIdx === idx ? (
+                        <button type="button" onClick={stopRecording} className="ghost tiny">
+                          Stoppa inspelning
+                        </button>
+                      ) : (
+                        <button type="button" onClick={() => startRecording(idx)} className="ghost tiny">
+                          🎙️ Spela in
+                        </button>
+                      )}
+                      {ex.audioAssetId && (
+                        <button type="button" className="ghost tiny" onClick={() => clearAudio(idx)}>
+                          Rensa ljud
+                        </button>
+                      )}
+                    </div>
+                    {ex.audioUrl && (
+                      <audio controls src={ex.audioUrl} className="audio-player">
+                        Din browser stöder inte uppspelning.
+                      </audio>
+                    )}
+                  </div>
               </div>
               <button type="button" className="ghost" onClick={() => removeExercise(idx)}>
                 Ta bort
@@ -232,6 +347,7 @@ function ProgramEditor({ prefill, onSave }) {
         </div>
 
         <button type="submit">Spara pass</button>
+        {status && <div className="status">{status}</div>}
       </form>
     </div>
   );

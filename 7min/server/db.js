@@ -52,6 +52,8 @@ function migrate() {
       rest_seconds INTEGER DEFAULT 0,
       notes TEXT,
       equipment_hint TEXT,
+      audio_asset_id INTEGER,
+      image_asset_id INTEGER,
       FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE CASCADE
     );
 
@@ -66,7 +68,28 @@ function migrate() {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE SET NULL
     );
+
+    CREATE TABLE IF NOT EXISTS media_assets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      type TEXT NOT NULL CHECK (type IN ('audio', 'image')),
+      mime TEXT NOT NULL,
+      filename TEXT NOT NULL,
+      size INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
   `);
+
+  const programExerciseColumns = db.prepare('PRAGMA table_info(program_exercises)').all();
+  const hasAudio = programExerciseColumns.some((c) => c.name === 'audio_asset_id');
+  const hasImage = programExerciseColumns.some((c) => c.name === 'image_asset_id');
+  if (!hasAudio) {
+    db.exec('ALTER TABLE program_exercises ADD COLUMN audio_asset_id INTEGER');
+  }
+  if (!hasImage) {
+    db.exec('ALTER TABLE program_exercises ADD COLUMN image_asset_id INTEGER');
+  }
 
   const equipmentSeeds = [
     ['bodyweight', 'Kroppsvikt'],

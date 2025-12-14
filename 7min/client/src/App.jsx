@@ -72,6 +72,8 @@ function App() {
       restSeconds: ex.rest_seconds,
       notes: ex.notes || '',
       equipmentHint: ex.equipment_hint || '',
+       audioAssetId: ex.audio_asset_id || null,
+       audioUrl: ex.audio_url || null,
     }));
   }, [programDetails, selectedProgramId]);
 
@@ -163,15 +165,7 @@ function App() {
         ...prev,
         [data.program.id]: {
           program: data.program,
-          exercises: draft.exercises.map((ex, idx) => ({
-            id: `new-${idx}`,
-            title: ex.title,
-            duration_seconds: ex.durationSeconds,
-            rest_seconds: ex.restSeconds,
-            notes: ex.notes,
-            equipment_hint: ex.equipmentHint || null,
-            position: idx + 1,
-          })),
+          exercises: data.exercises || [],
         },
       }));
       setSelectedProgramId(data.program.id);

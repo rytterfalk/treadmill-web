@@ -31,6 +31,7 @@ function playTone(frequency = 720) {
 
 function WorkoutTimer({ program, exercises, onComplete }) {
   const rounds = Math.max(program?.rounds || 1, 1);
+  const voicePlayerRef = useRef(null);
 
   const schedule = useMemo(() => {
     if (!exercises?.length) return [];
@@ -44,6 +45,7 @@ function WorkoutTimer({ program, exercises, onComplete }) {
           rest: Number(ex.restSeconds) || 0,
           round: round + 1,
           notes: ex.notes || '',
+          audioUrl: ex.audioUrl || null,
         });
         if (Number(ex.restSeconds) > 0) {
           seq.push({
@@ -69,7 +71,7 @@ function WorkoutTimer({ program, exercises, onComplete }) {
   }, [exercises, rounds]);
 
   const scheduleKey = useMemo(
-    () => schedule.map((s) => `${s.label}-${s.duration}-${s.type}`).join('|'),
+    () => schedule.map((s) => `${s.label}-${s.duration}-${s.type}-${s.audioUrl || ''}`).join('|'),
     [schedule]
   );
 
@@ -94,6 +96,24 @@ function WorkoutTimer({ program, exercises, onComplete }) {
     setElapsed(0);
     setCountdown(3);
   }, [scheduleKey]);
+
+  useEffect(() => {
+    const step = schedule[stepIndex];
+    if (step?.type === 'rest') {
+      const next = schedule[stepIndex + 1];
+      if (next?.type === 'exercise' && next.audioUrl) {
+        try {
+          const player = voicePlayerRef.current || new Audio();
+          player.src = next.audioUrl;
+          player.currentTime = 0;
+          voicePlayerRef.current = player;
+          player.play().catch(() => {});
+        } catch (err) {
+          // ignore playback errors
+        }
+      }
+    }
+  }, [stepIndex, schedule]);
 
   // Keep screen awake (best-effort) while timern kör
   useEffect(() => {

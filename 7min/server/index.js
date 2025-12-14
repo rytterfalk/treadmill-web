@@ -1,6 +1,10 @@
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
+const multer = require('multer');
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
 const { migrate, db, getUserById } = require('./db');
 const {
   authRequired,
@@ -9,7 +13,7 @@ const {
   createUser,
   authenticate,
 } = require('./auth');
-const { CLIENT_ORIGIN, PORT } = require('./config');
+const { CLIENT_ORIGIN, PORT, UPLOAD_DIR } = require('./config');
 
 migrate();
 
@@ -22,9 +26,78 @@ app.use(
 );
 app.use(express.json());
 app.use(cookieParser());
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+app.use('/uploads', express.static(UPLOAD_DIR));
+
+function toAssetResponse(asset) {
+  if (!asset) return null;
+  return {
+    id: asset.id,
+    type: asset.type,
+    mime: asset.mime,
+    size: asset.size,
+    url: `/uploads/${asset.filename}`,
+  };
+}
+
+function withExerciseMedia(rows) {
+  return rows.map((row) => ({
+    ...row,
+    audio_asset_id: row.audio_asset_id || null,
+    audio_url: row.audio_filename ? `/uploads/${row.audio_filename}` : null,
+    image_asset_id: row.image_asset_id || null,
+    image_url: row.image_filename ? `/uploads/${row.image_filename}` : null,
+  }));
+}
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname || '').slice(0, 8);
+    const id = crypto.randomUUID();
+    cb(null, `${id}${ext}`);
+  },
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 8 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['audio/', 'image/'];
+    if (allowed.some((prefix) => file.mimetype.startsWith(prefix))) {
+      cb(null, true);
+    } else {
+      cb(new Error('Ogiltig filtyp'));
+    }
+  },
+});
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
+});
+
+app.post('/api/media', authRequired, upload.single('file'), (req, res) => {
+  const { type = 'audio' } = req.body;
+  const file = req.file;
+  if (!file) return res.status(400).json({ error: 'Fil saknas' });
+  if (!['audio', 'image'].includes(type)) {
+    return res.status(400).json({ error: 'Ogiltig typ' });
+  }
+  const asset = db
+    .prepare(
+      `INSERT INTO media_assets (user_id, type, mime, filename, size)
+       VALUES (?, ?, ?, ?, ?)`
+    )
+    .run(req.user.id, type, file.mimetype, file.filename, file.size);
+
+  res.status(201).json({
+    asset: {
+      id: asset.lastInsertRowid,
+      type,
+      mime: file.mimetype,
+      size: file.size,
+      url: `/uploads/${file.filename}`,
+    },
+  });
 });
 
 app.post('/api/auth/register', (req, res) => {
@@ -141,14 +214,20 @@ app.get('/api/programs/:id', (req, res) => {
 
   const exercises = db
     .prepare(
-      `SELECT id, position, title, duration_seconds, rest_seconds, notes, equipment_hint
+      `SELECT pe.id, pe.position, pe.title, pe.duration_seconds, pe.rest_seconds, pe.notes, pe.equipment_hint,
+              pe.audio_asset_id, pe.image_asset_id,
+              ma.filename AS audio_filename, ma.mime AS audio_mime,
+              mi.filename AS image_filename, mi.mime AS image_mime
        FROM program_exercises
-       WHERE program_id = ?
-       ORDER BY position`
+       pe
+       LEFT JOIN media_assets ma ON ma.id = pe.audio_asset_id
+       LEFT JOIN media_assets mi ON mi.id = pe.image_asset_id
+       WHERE pe.program_id = ?
+       ORDER BY pe.position`
     )
     .all(program.id);
 
-  res.json({ program, exercises });
+  res.json({ program, exercises: withExerciseMedia(exercises) });
 });
 
 app.post('/api/programs', authRequired, (req, res) => {
@@ -167,11 +246,26 @@ app.post('/api/programs', authRequired, (req, res) => {
 
     const insertExercise = db.prepare(
       `INSERT INTO program_exercises
-        (program_id, position, title, duration_seconds, rest_seconds, notes, equipment_hint)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
+        (program_id, position, title, duration_seconds, rest_seconds, notes, equipment_hint, audio_asset_id, image_asset_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
 
     exercises.forEach((exercise, index) => {
+      const audioAssetId = exercise.audioAssetId || null;
+      const imageAssetId = exercise.imageAssetId || null;
+      if (audioAssetId) {
+        const asset = db
+          .prepare('SELECT id FROM media_assets WHERE id = ? AND user_id = ?')
+          .get(audioAssetId, req.user.id);
+        if (!asset) throw new Error('Ogiltigt ljud-id');
+      }
+      if (imageAssetId) {
+        const asset = db
+          .prepare('SELECT id FROM media_assets WHERE id = ? AND user_id = ?')
+          .get(imageAssetId, req.user.id);
+        if (!asset) throw new Error('Ogiltigt bild-id');
+      }
+
       insertExercise.run(
         programId,
         index + 1,
@@ -179,18 +273,40 @@ app.post('/api/programs', authRequired, (req, res) => {
         Number(exercise.durationSeconds) || 30,
         Number(exercise.restSeconds) || 0,
         exercise.notes || '',
-        exercise.equipmentHint || null
+        exercise.equipmentHint || null,
+        audioAssetId,
+        imageAssetId
       );
     });
 
     return programId;
   });
 
-  const programId = tx();
+  let programId;
+  try {
+    programId = tx();
+  } catch (err) {
+    return res.status(400).json({ error: err.message || 'Kunde inte spara programmet' });
+  }
+
   const program = db
     .prepare('SELECT id, title, description, rounds, is_public, created_at FROM programs WHERE id = ?')
     .get(programId);
-  res.status(201).json({ program });
+  const exercisesSaved = db
+    .prepare(
+      `SELECT pe.id, pe.position, pe.title, pe.duration_seconds, pe.rest_seconds, pe.notes, pe.equipment_hint,
+              pe.audio_asset_id, pe.image_asset_id,
+              ma.filename AS audio_filename, ma.mime AS audio_mime,
+              mi.filename AS image_filename, mi.mime AS image_mime
+       FROM program_exercises pe
+       LEFT JOIN media_assets ma ON ma.id = pe.audio_asset_id
+       LEFT JOIN media_assets mi ON mi.id = pe.image_asset_id
+       WHERE pe.program_id = ?
+       ORDER BY pe.position`
+    )
+    .all(programId);
+
+  res.status(201).json({ program, exercises: withExerciseMedia(exercisesSaved) });
 });
 
 app.post('/api/sessions', authRequired, (req, res) => {
