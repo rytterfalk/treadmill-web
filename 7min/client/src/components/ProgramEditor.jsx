@@ -53,6 +53,16 @@ function ProgramEditor({ prefill, onSave }) {
     setExercises((list) => list.filter((_, idx) => idx !== index));
   }
 
+  function moveExercise(from, to) {
+    setExercises((list) => {
+      const boundedTarget = Math.max(0, Math.min(list.length - 1, to));
+      const next = [...list];
+      const [item] = next.splice(from, 1);
+      next.splice(boundedTarget, 0, item);
+      return next;
+    });
+  }
+
   function handleDragStart(index) {
     setDraggingIdx(index);
   }
@@ -70,6 +80,14 @@ function ProgramEditor({ prefill, onSave }) {
 
   function handleDragEnd() {
     setDraggingIdx(null);
+  }
+
+  function handleOrderInput(index, value) {
+    if (Number.isNaN(value) || value < 1) return;
+    const targetIndex = Math.max(0, Math.min(exercises.length - 1, value - 1));
+    moveExercise(index, targetIndex);
+    setDraggingIdx(targetIndex);
+    setTimeout(() => setDraggingIdx(null), 120);
   }
 
   function handleSubmit(e) {
@@ -168,6 +186,37 @@ function ProgramEditor({ prefill, onSave }) {
                   onChange={(e) => updateExercise(idx, 'notes', e.target.value)}
                   placeholder="Tips / notes"
                 />
+                <div className="order-controls">
+                  <label className="inline compact">
+                    Ordning
+                    <input
+                      className="order-input"
+                      type="number"
+                      min={1}
+                      max={exercises.length}
+                      value={idx + 1}
+                      onChange={(e) => handleOrderInput(idx, Number(e.target.value))}
+                    />
+                  </label>
+                  <div className="order-buttons">
+                    <button
+                      type="button"
+                      className="ghost tiny"
+                      disabled={idx === 0}
+                      onClick={() => moveExercise(idx, idx - 1)}
+                    >
+                      Upp
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost tiny"
+                      disabled={idx === exercises.length - 1}
+                      onClick={() => moveExercise(idx, idx + 1)}
+                    >
+                      Ner
+                    </button>
+                  </div>
+                </div>
               </div>
               <button type="button" className="ghost" onClick={() => removeExercise(idx)}>
                 Ta bort
