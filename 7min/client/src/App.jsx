@@ -72,8 +72,10 @@ function App() {
       restSeconds: ex.rest_seconds,
       notes: ex.notes || '',
       equipmentHint: ex.equipment_hint || '',
-       audioAssetId: ex.audio_asset_id || null,
-       audioUrl: ex.audio_url || null,
+      audioAssetId: ex.audio_asset_id || null,
+      audioUrl: ex.audio_url || null,
+      halfAudioAssetId: ex.half_audio_asset_id || null,
+      halfAudioUrl: ex.half_audio_url || null,
     }));
   }, [programDetails, selectedProgramId]);
 

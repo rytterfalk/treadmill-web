@@ -315,6 +315,18 @@ button.tiny {
   font-weight: 600;
 }
 
+.icon-only {
+  width: 42px;
+  min-width: 42px;
+  padding: 0.45rem 0;
+  display: grid;
+  place-items: center;
+}
+
+.exercise-row {
+  position: relative;
+}
+
 .audio-controls {
   margin-top: 0.2rem;
   padding: 0.65rem;
@@ -345,6 +357,22 @@ button.tiny {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+@media (min-width: 980px) {
+  .editor {
+    max-width: 920px;
+  }
+  .exercise-row {
+    grid-template-columns: 50px 1fr auto;
+    align-items: start;
+  }
+  .exercise-row .fields {
+    gap: 0.5rem;
+  }
+  .audio-controls {
+    margin-top: 0.3rem;
+  }
 }
 
 .equipment .chip-grid {

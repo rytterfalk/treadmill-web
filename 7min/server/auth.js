@@ -8,10 +8,14 @@ function createToken(userId) {
 }
 
 function setAuthCookie(res, token) {
+  const isSecure =
+    process.env.COOKIE_SECURE === 'true' ||
+    process.env.CLIENT_ORIGIN?.startsWith('https://') ||
+    process.env.NODE_ENV === 'production';
   res.cookie('auth_token', token, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: false,
+    secure: isSecure,
     maxAge: 1000 * 60 * 60 * 24 * 7,
   });
 }

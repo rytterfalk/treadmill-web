@@ -1,8 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 const starterExercises = [
-  { title: 'Knäböj', durationSeconds: 30, restSeconds: 10, notes: '', audioAssetId: null, audioUrl: null },
-  { title: 'Armhävningar', durationSeconds: 30, restSeconds: 10, notes: '', audioAssetId: null, audioUrl: null },
+  {
+    title: 'Knäböj',
+    durationSeconds: 30,
+    restSeconds: 10,
+    notes: '',
+    audioAssetId: null,
+    audioUrl: null,
+    halfAudioAssetId: null,
+    halfAudioUrl: null,
+  },
+  {
+    title: 'Armhävningar',
+    durationSeconds: 30,
+    restSeconds: 10,
+    notes: '',
+    audioAssetId: null,
+    audioUrl: null,
+    halfAudioAssetId: null,
+    halfAudioUrl: null,
+  },
 ];
 
 function ProgramEditor({ prefill, onSave }) {
@@ -12,7 +30,7 @@ function ProgramEditor({ prefill, onSave }) {
   const [isPublic, setIsPublic] = useState(false);
   const [exercises, setExercises] = useState(starterExercises);
   const [draggingIdx, setDraggingIdx] = useState(null);
-  const [recordingIdx, setRecordingIdx] = useState(null);
+  const [recordingIdx, setRecordingIdx] = useState(null); // "pause-0" | "half-0" | null
   const [status, setStatus] = useState('');
   const mediaRecorderRef = useRef(null);
   const mediaStreamRef = useRef(null);
@@ -38,6 +56,8 @@ function ProgramEditor({ prefill, onSave }) {
             notes: ex.notes || '',
             audioAssetId: ex.audioAssetId || null,
             audioUrl: ex.audioUrl || null,
+            halfAudioAssetId: ex.halfAudioAssetId || null,
+            halfAudioUrl: ex.halfAudioUrl || null,
           }))
         : starterExercises
     );
@@ -56,7 +76,16 @@ function ProgramEditor({ prefill, onSave }) {
   function addExercise() {
     setExercises((list) => [
       ...list,
-      { title: 'Nytt moment', durationSeconds: 30, restSeconds: 10, notes: '', audioAssetId: null, audioUrl: null },
+      {
+        title: 'Nytt moment',
+        durationSeconds: 30,
+        restSeconds: 10,
+        notes: '',
+        audioAssetId: null,
+        audioUrl: null,
+        halfAudioAssetId: null,
+        halfAudioUrl: null,
+      },
     ]);
   }
 
@@ -114,6 +143,7 @@ function ProgramEditor({ prefill, onSave }) {
         restSeconds: ex.restSeconds,
         notes: ex.notes,
         audioAssetId: ex.audioAssetId || null,
+        halfAudioAssetId: ex.halfAudioAssetId || null,
       })),
     });
   }
@@ -130,9 +160,18 @@ function ProgramEditor({ prefill, onSave }) {
     }
   }
 
-  async function startRecording(index) {
+  async function startRecording(index, { half = false } = {}) {
     if (!navigator.mediaDevices?.getUserMedia) {
-      setStatus('Din browser blockerar inspelning.');
+      setStatus('Din browser saknar stöd eller blockerar inspelning.');
+      return;
+    }
+    const isSecure =
+      window.isSecureContext ||
+      location.protocol === 'https:' ||
+      location.hostname === 'localhost' ||
+      location.hostname === '127.0.0.1';
+    if (!isSecure) {
+      setStatus('Inspelning kräver HTTPS eller localhost. Lägg gärna till cert eller kör via https://.');
       return;
     }
     try {
@@ -146,18 +185,24 @@ function ProgramEditor({ prefill, onSave }) {
       };
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
-        uploadAudio(index, blob);
+        uploadAudio(index, blob, { half });
         stopStream();
         setRecordingIdx(null);
       };
       recorder.start();
-      setRecordingIdx(index);
+      setRecordingIdx(`${half ? 'half-' : 'pause-'}${index}`);
     } catch (err) {
-      setStatus('Kunde inte starta inspelning. Kolla mikrofon-behörigheter.');
+      const hint =
+        err?.name === 'NotAllowedError'
+          ? 'Mikrofon-tillstånd nekades. Tillåt mic för sajten och försök igen.'
+          : err?.name === 'NotFoundError'
+            ? 'Ingen mikrofon hittades.'
+            : 'Kunde inte starta inspelning. Kolla mikrofon-behörigheter.';
+      setStatus(hint);
     }
   }
 
-  async function uploadAudio(index, blob) {
+  async function uploadAudio(index, blob, { half = false } = {}) {
     if (!blob.size) return;
     setExercisePatch(index, { uploadingAudio: true });
     try {
@@ -171,19 +216,36 @@ function ProgramEditor({ prefill, onSave }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Kunde inte ladda upp ljudet');
-      setExercisePatch(index, {
-        audioAssetId: data.asset.id,
-        audioUrl: data.asset.url,
-        uploadingAudio: false,
-      });
-      setStatus('Ljud sparat!');
+      if (half) {
+        setExercisePatch(index, {
+          halfAudioAssetId: data.asset.id,
+          halfAudioUrl: data.asset.url,
+          uploadingAudio: false,
+        });
+        setStatus('Halvtidsljud sparat!');
+      } else {
+        setExercisePatch(index, {
+          audioAssetId: data.asset.id,
+          audioUrl: data.asset.url,
+          uploadingAudio: false,
+        });
+        setStatus('Ljud sparat!');
+      }
     } catch (err) {
       setExercisePatch(index, { uploadingAudio: false });
       setStatus(err.message);
     }
   }
 
-  function clearAudio(index) {
+  function clearAudio(index, { half = false } = {}) {
+    if (half) {
+      setExercisePatch(index, {
+        halfAudioAssetId: null,
+        halfAudioUrl: null,
+        uploadingAudio: false,
+      });
+      return;
+    }
     setExercisePatch(index, { audioAssetId: null, audioUrl: null, uploadingAudio: false });
   }
 
@@ -314,7 +376,7 @@ function ProgramEditor({ prefill, onSave }) {
                       {ex.uploadingAudio && <span className="badge">Laddar upp...</span>}
                     </div>
                     <div className="audio-actions">
-                      {recordingIdx === idx ? (
+                      {recordingIdx === `pause-${idx}` ? (
                         <button type="button" onClick={stopRecording} className="ghost tiny">
                           Stoppa inspelning
                         </button>
@@ -334,10 +396,38 @@ function ProgramEditor({ prefill, onSave }) {
                         Din browser stöder inte uppspelning.
                       </audio>
                     )}
+                    <div className="audio-header">
+                      <p className="mini-title">Halvtidsljud</p>
+                    </div>
+                    <div className="audio-actions">
+                      {recordingIdx === `half-${idx}` ? (
+                        <button type="button" onClick={stopRecording} className="ghost tiny">
+                          Stoppa inspelning
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => startRecording(idx, { half: true })}
+                          className="ghost tiny"
+                        >
+                          🎙️ Spela in halvtid
+                        </button>
+                      )}
+                      {ex.halfAudioAssetId && (
+                        <button type="button" className="ghost tiny" onClick={() => clearAudio(idx, { half: true })}>
+                          Rensa halvtid
+                        </button>
+                      )}
+                    </div>
+                    {ex.halfAudioUrl && (
+                      <audio controls src={ex.halfAudioUrl} className="audio-player">
+                        Din browser stöder inte uppspelning.
+                      </audio>
+                    )}
                   </div>
               </div>
-              <button type="button" className="ghost" onClick={() => removeExercise(idx)}>
-                Ta bort
+              <button type="button" className="ghost icon-only" onClick={() => removeExercise(idx)} aria-label="Ta bort">
+                🗑️
               </button>
             </div>
           ))}

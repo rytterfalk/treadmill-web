@@ -46,6 +46,7 @@ function WorkoutTimer({ program, exercises, onComplete }) {
           round: round + 1,
           notes: ex.notes || '',
           audioUrl: ex.audioUrl || null,
+          halfAudioUrl: ex.halfAudioUrl || null,
         });
         if (Number(ex.restSeconds) > 0) {
           seq.push({
@@ -71,7 +72,10 @@ function WorkoutTimer({ program, exercises, onComplete }) {
   }, [exercises, rounds]);
 
   const scheduleKey = useMemo(
-    () => schedule.map((s) => `${s.label}-${s.duration}-${s.type}-${s.audioUrl || ''}`).join('|'),
+    () =>
+      schedule
+        .map((s) => `${s.label}-${s.duration}-${s.type}-${s.audioUrl || ''}-${s.halfAudioUrl || ''}`)
+        .join('|'),
     [schedule]
   );
 
@@ -176,8 +180,24 @@ function WorkoutTimer({ program, exercises, onComplete }) {
 
         const nextTime = time - 1;
         const halfway = Math.floor(step.duration / 2);
-        if (step.type === 'exercise' && (nextTime === halfway || (nextTime <= 5 && nextTime > 0))) {
-          playTone(nextTime <= 5 ? 540 : 760);
+        if (step.type === 'exercise') {
+          if (nextTime === halfway) {
+            if (step.halfAudioUrl) {
+              try {
+                const player = voicePlayerRef.current || new Audio();
+                player.src = step.halfAudioUrl;
+                player.currentTime = 0;
+                voicePlayerRef.current = player;
+                player.play().catch(() => {});
+              } catch (err) {
+                playTone(760);
+              }
+            } else {
+              playTone(760);
+            }
+          } else if (nextTime <= 5 && nextTime > 0) {
+            playTone(540);
+          }
         }
         if (step.type === 'rest' && nextTime <= 3 && nextTime > 0) {
           playTone(520);

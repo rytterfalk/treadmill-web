@@ -5,6 +5,7 @@ const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const https = require('https');
 const { migrate, db, getUserById } = require('./db');
 const {
   authRequired,
@@ -45,6 +46,8 @@ function withExerciseMedia(rows) {
     ...row,
     audio_asset_id: row.audio_asset_id || null,
     audio_url: row.audio_filename ? `/uploads/${row.audio_filename}` : null,
+    half_audio_asset_id: row.half_audio_asset_id || null,
+    half_audio_url: row.half_audio_filename ? `/uploads/${row.half_audio_filename}` : null,
     image_asset_id: row.image_asset_id || null,
     image_url: row.image_filename ? `/uploads/${row.image_filename}` : null,
   }));
@@ -215,12 +218,14 @@ app.get('/api/programs/:id', (req, res) => {
   const exercises = db
     .prepare(
       `SELECT pe.id, pe.position, pe.title, pe.duration_seconds, pe.rest_seconds, pe.notes, pe.equipment_hint,
-              pe.audio_asset_id, pe.image_asset_id,
+              pe.audio_asset_id, pe.half_audio_asset_id, pe.image_asset_id,
               ma.filename AS audio_filename, ma.mime AS audio_mime,
+              mh.filename AS half_audio_filename, mh.mime AS half_audio_mime,
               mi.filename AS image_filename, mi.mime AS image_mime
        FROM program_exercises
        pe
        LEFT JOIN media_assets ma ON ma.id = pe.audio_asset_id
+       LEFT JOIN media_assets mh ON mh.id = pe.half_audio_asset_id
        LEFT JOIN media_assets mi ON mi.id = pe.image_asset_id
        WHERE pe.program_id = ?
        ORDER BY pe.position`
@@ -246,18 +251,25 @@ app.post('/api/programs', authRequired, (req, res) => {
 
     const insertExercise = db.prepare(
       `INSERT INTO program_exercises
-        (program_id, position, title, duration_seconds, rest_seconds, notes, equipment_hint, audio_asset_id, image_asset_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        (program_id, position, title, duration_seconds, rest_seconds, notes, equipment_hint, audio_asset_id, half_audio_asset_id, image_asset_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
 
     exercises.forEach((exercise, index) => {
       const audioAssetId = exercise.audioAssetId || null;
+      const halfAudioAssetId = exercise.halfAudioAssetId || null;
       const imageAssetId = exercise.imageAssetId || null;
       if (audioAssetId) {
         const asset = db
           .prepare('SELECT id FROM media_assets WHERE id = ? AND user_id = ?')
           .get(audioAssetId, req.user.id);
         if (!asset) throw new Error('Ogiltigt ljud-id');
+      }
+      if (halfAudioAssetId) {
+        const asset = db
+          .prepare('SELECT id FROM media_assets WHERE id = ? AND user_id = ?')
+          .get(halfAudioAssetId, req.user.id);
+        if (!asset) throw new Error('Ogiltigt halvtidsljud-id');
       }
       if (imageAssetId) {
         const asset = db
@@ -275,6 +287,7 @@ app.post('/api/programs', authRequired, (req, res) => {
         exercise.notes || '',
         exercise.equipmentHint || null,
         audioAssetId,
+        halfAudioAssetId,
         imageAssetId
       );
     });
@@ -295,11 +308,13 @@ app.post('/api/programs', authRequired, (req, res) => {
   const exercisesSaved = db
     .prepare(
       `SELECT pe.id, pe.position, pe.title, pe.duration_seconds, pe.rest_seconds, pe.notes, pe.equipment_hint,
-              pe.audio_asset_id, pe.image_asset_id,
+              pe.audio_asset_id, pe.half_audio_asset_id, pe.image_asset_id,
               ma.filename AS audio_filename, ma.mime AS audio_mime,
+              mh.filename AS half_audio_filename, mh.mime AS half_audio_mime,
               mi.filename AS image_filename, mi.mime AS image_mime
        FROM program_exercises pe
        LEFT JOIN media_assets ma ON ma.id = pe.audio_asset_id
+       LEFT JOIN media_assets mh ON mh.id = pe.half_audio_asset_id
        LEFT JOIN media_assets mi ON mi.id = pe.image_asset_id
        WHERE pe.program_id = ?
        ORDER BY pe.position`
@@ -344,6 +359,14 @@ app.get('/api/sessions/recent', authRequired, (req, res) => {
   res.json({ sessions: rows });
 });
 
-app.listen(PORT, () => {
-  console.log(`API kör på http://localhost:${PORT}`);
-});
+if (process.env.HTTPS_KEY && process.env.HTTPS_CERT) {
+  const key = fs.readFileSync(process.env.HTTPS_KEY);
+  const cert = fs.readFileSync(process.env.HTTPS_CERT);
+  https.createServer({ key, cert }, app).listen(PORT, () => {
+    console.log(`API kör (HTTPS) på https://localhost:${PORT}`);
+  });
+} else {
+  app.listen(PORT, () => {
+    console.log(`API kör på http://localhost:${PORT}`);
+  });
+}

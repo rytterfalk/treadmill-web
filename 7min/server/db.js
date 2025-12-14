@@ -53,6 +53,7 @@ function migrate() {
       notes TEXT,
       equipment_hint TEXT,
       audio_asset_id INTEGER,
+      half_audio_asset_id INTEGER,
       image_asset_id INTEGER,
       FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE CASCADE
     );
@@ -84,8 +85,12 @@ function migrate() {
   const programExerciseColumns = db.prepare('PRAGMA table_info(program_exercises)').all();
   const hasAudio = programExerciseColumns.some((c) => c.name === 'audio_asset_id');
   const hasImage = programExerciseColumns.some((c) => c.name === 'image_asset_id');
+  const hasHalfAudio = programExerciseColumns.some((c) => c.name === 'half_audio_asset_id');
   if (!hasAudio) {
     db.exec('ALTER TABLE program_exercises ADD COLUMN audio_asset_id INTEGER');
+  }
+  if (!hasHalfAudio) {
+    db.exec('ALTER TABLE program_exercises ADD COLUMN half_audio_asset_id INTEGER');
   }
   if (!hasImage) {
     db.exec('ALTER TABLE program_exercises ADD COLUMN image_asset_id INTEGER');
