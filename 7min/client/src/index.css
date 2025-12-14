@@ -1,9 +1,16 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 :root {
+  --ink: #0f0b06;
+  --sand: #fff7cf;
+  --sun: #f8d84c;
+  --sun-strong: #f6c500;
+  --card: #ffffff;
+  --muted: #4a4a4a;
+  --border: #e6dcb2;
   font-family: 'Space Grotesk', 'Inter', system-ui, -apple-system, sans-serif;
-  color: #1f2533;
-  background-color: #f6f8fb;
+  color: var(--ink);
+  background-color: var(--sand);
   line-height: 1.6;
 }
 
@@ -15,10 +22,10 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 20% 20%, rgba(88, 187, 255, 0.15), transparent 32%),
-    radial-gradient(circle at 80% 0%, rgba(126, 214, 165, 0.12), transparent 30%),
-    linear-gradient(180deg, #f9fbff 0%, #eef2f9 60%, #e8ecf5 100%);
-  color: #1f2533;
+    radial-gradient(circle at 20% 20%, rgba(255, 209, 84, 0.22), transparent 34%),
+    radial-gradient(circle at 80% 0%, rgba(252, 238, 180, 0.28), transparent 30%),
+    linear-gradient(180deg, #fff8dc 0%, #fbeab0 50%, #f3d861 100%);
+  color: var(--ink);
 }
 
 a {
