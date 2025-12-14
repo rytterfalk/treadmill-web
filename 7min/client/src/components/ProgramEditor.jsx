@@ -187,16 +187,19 @@ function ProgramEditor({ prefill, onSave }) {
                   placeholder="Tips / notes"
                 />
                 <div className="order-controls">
-                  <label className="inline compact">
+                  <label className="inline compact order-label">
                     Ordning
-                    <input
+                    <select
                       className="order-input"
-                      type="number"
-                      min={1}
-                      max={exercises.length}
                       value={idx + 1}
                       onChange={(e) => handleOrderInput(idx, Number(e.target.value))}
-                    />
+                    >
+                      {exercises.map((_, orderIdx) => (
+                        <option key={orderIdx} value={orderIdx + 1}>
+                          {orderIdx + 1}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                   <div className="order-buttons">
                     <button

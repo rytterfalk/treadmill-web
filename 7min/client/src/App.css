@@ -294,7 +294,14 @@
 }
 
 .order-input {
-  width: 82px;
+  width: 90px;
+}
+
+.order-label select {
+  background: #f8fbff;
+  border: 1px solid #d6deeb;
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
 }
 
 .order-buttons {

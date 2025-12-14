@@ -1,8 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+let audioCtx;
+function getAudioContext() {
+  if (audioCtx) return audioCtx;
+  const Ctor = window.AudioContext || window.webkitAudioContext;
+  if (!Ctor) return null;
+  audioCtx = new Ctor();
+  return audioCtx;
+}
+
 function playTone(frequency = 720) {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
     const oscillator = ctx.createOscillator();
     const gain = ctx.createGain();
     oscillator.frequency.value = frequency;
@@ -171,6 +184,7 @@ function WorkoutTimer({ program, exercises, onComplete }) {
 
   function startCountdown(targetIndex = 0) {
     if (!schedule[targetIndex]) return;
+    playTone(520);
     setStepIndex(targetIndex);
     setRemaining(schedule[targetIndex].duration || 0);
     setCountdown(3);
@@ -180,6 +194,7 @@ function WorkoutTimer({ program, exercises, onComplete }) {
   function start() {
     if (!schedule.length) return;
     if (status === 'paused' && remaining > 0) {
+      playTone(520);
       setCountdown(3);
       setStatus('countdown');
       return;
