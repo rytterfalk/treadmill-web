@@ -207,14 +207,12 @@ function App() {
 
   if (!user) {
     return (
-      <div className="auth-shell">
-        <div className="auth-card">
-          <div className="tag">Prototyp • 7 min trainer</div>
-          <h1>Bygg och kör dina pass på ett ställe</h1>
-          <p className="lede">
-            Spara progress, registrera utrustning och starta timer med ljud för halvtid och
-            sista sekunderna. Allt körs på din egen Pi med SQLite.
-          </p>
+      <div className="auth-hero">
+        <div className="auth-overlay" />
+        <div className="auth-card minimal">
+          <div className="tag">7 min studio</div>
+          <h1>{authMode === 'login' ? 'Logga in' : 'Skapa konto'}</h1>
+          <p className="lede tiny">Snabb åtkomst till dina pass. Bara e-post och lösenord.</p>
 
           <form className="auth-form" onSubmit={handleAuthSubmit}>
             {authMode === 'register' && (
@@ -262,21 +260,6 @@ function App() {
               </button>
             </div>
           </form>
-
-          <div className="feature-grid">
-            <div>
-              <strong>Passbyggare</strong>
-              <p>Bestäm moment, tid, vila och antal varv. Spara för senare.</p>
-            </div>
-            <div>
-              <strong>Ljudsignal</strong>
-              <p>Ping vid halvtid och countdown sista 5 sekunderna.</p>
-            </div>
-            <div>
-              <strong>Progress</strong>
-              <p>Spara sessions, utrustning och få rekommenderade upplägg.</p>
-            </div>
-          </div>
 
           {status && <div className="status">{status}</div>}
         </div>
