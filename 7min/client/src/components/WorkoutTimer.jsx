@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 function playTone(frequency = 720) {
   try {
@@ -70,6 +70,7 @@ function WorkoutTimer({ program, exercises, onComplete }) {
   const [status, setStatus] = useState('idle'); // idle | countdown | running | paused | done
   const [elapsed, setElapsed] = useState(0);
   const [countdown, setCountdown] = useState(3);
+  const wakeLockRef = useRef(null);
 
   const currentStep = schedule[stepIndex];
 
@@ -80,6 +81,42 @@ function WorkoutTimer({ program, exercises, onComplete }) {
     setElapsed(0);
     setCountdown(3);
   }, [scheduleKey]);
+
+  // Keep screen awake (best-effort) while timern kör
+  useEffect(() => {
+    let cancelled = false;
+    async function requestWakeLock() {
+      try {
+        if ('wakeLock' in navigator && status === 'running') {
+          wakeLockRef.current = await navigator.wakeLock.request('screen');
+          wakeLockRef.current.addEventListener('release', () => {
+            wakeLockRef.current = null;
+          });
+        }
+      } catch (err) {
+        // ignore; not supported or blocked
+      }
+    }
+    if (status === 'running') {
+      requestWakeLock();
+    } else if (wakeLockRef.current) {
+      wakeLockRef.current.release().catch(() => {});
+      wakeLockRef.current = null;
+    }
+    const onVisibility = () => {
+      if (wakeLockRef.current && document.visibilityState === 'visible') {
+        requestWakeLock();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release().catch(() => {});
+        wakeLockRef.current = null;
+      }
+    };
+  }, [status]);
 
   useEffect(() => {
     if (status !== 'countdown') return undefined;
@@ -214,19 +251,25 @@ function WorkoutTimer({ program, exercises, onComplete }) {
       </div>
 
       <div className="mini-steps">
-        {schedule.map((step, idx) => (
-          <div
-            key={`${step.label}-${idx}`}
-            className={`mini-step ${
-              idx === stepIndex ? 'active' : idx < stepIndex ? 'done' : ''
-            }`}
-          >
-            <div className="mini-label">{step.label}</div>
-            <div className="mini-meta">
-              {step.duration}s • Varv {step.round}
-            </div>
-          </div>
-        ))}
+        {schedule
+          .map((step, idx) => ({ step, idx }))
+          .filter(({ step }) => step.type === 'exercise')
+          .map(({ step, idx }) => {
+            const currentExerciseIndex =
+              step.type === 'exercise' ? idx === stepIndex : false;
+            const done = idx < stepIndex;
+            return (
+              <div
+                key={`${step.label}-${idx}`}
+                className={`mini-step ${currentExerciseIndex ? 'active' : done ? 'done' : ''}`}
+              >
+                <div className="mini-label">{step.label}</div>
+                <div className="mini-meta">
+                  {step.duration}s • Varv {step.round}
+                </div>
+              </div>
+            );
+          })}
       </div>
     </div>
   );
