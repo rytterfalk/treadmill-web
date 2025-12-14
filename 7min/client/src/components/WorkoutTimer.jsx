@@ -159,6 +159,9 @@ function WorkoutTimer({ program, exercises, onComplete }) {
         if (step.type === 'exercise' && (nextTime === halfway || (nextTime <= 5 && nextTime > 0))) {
           playTone(nextTime <= 5 ? 540 : 760);
         }
+        if (step.type === 'rest' && nextTime <= 3 && nextTime > 0) {
+          playTone(520);
+        }
 
         if (nextTime <= 0) {
           const nextIndex = stepIndex + 1;
@@ -170,7 +173,7 @@ function WorkoutTimer({ program, exercises, onComplete }) {
             });
             return 0;
           }
-          startCountdown(nextIndex);
+          setStepIndex(nextIndex);
           return schedule[nextIndex].duration;
         }
 
