@@ -157,7 +157,7 @@ function WorkoutTimer({ program, exercises, onComplete }) {
             });
             return 0;
           }
-          setStepIndex(nextIndex);
+          startCountdown(nextIndex);
           return schedule[nextIndex].duration;
         }
 
@@ -169,11 +169,22 @@ function WorkoutTimer({ program, exercises, onComplete }) {
     return () => clearInterval(interval);
   }, [status, stepIndex, schedule, program?.title, totalDuration, onComplete]);
 
-  function start() {
-    if (!schedule.length) return;
+  function startCountdown(targetIndex = 0) {
+    if (!schedule[targetIndex]) return;
+    setStepIndex(targetIndex);
+    setRemaining(schedule[targetIndex].duration || 0);
     setCountdown(3);
     setStatus('countdown');
-    if (!remaining) setRemaining(schedule[stepIndex]?.duration || 0);
+  }
+
+  function start() {
+    if (!schedule.length) return;
+    if (status === 'paused' && remaining > 0) {
+      setCountdown(3);
+      setStatus('countdown');
+      return;
+    }
+    startCountdown(stepIndex || 0);
   }
 
   function pause() {
