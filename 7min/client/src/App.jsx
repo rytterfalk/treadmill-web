@@ -73,18 +73,17 @@ function App() {
     }
   }, [user]);
 
+  useEffect(() => {
     if (user && view === 'calendar') {
       loadCalendar();
       loadWeekBars();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, view, calendarRange.from, calendarRange.to]);
 
   useEffect(() => {
     if (user && view === 'calendar' && selectedDate) {
       loadDaySessions(selectedDate);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, view, selectedDate]);
 
   const selectedProgram = useMemo(
