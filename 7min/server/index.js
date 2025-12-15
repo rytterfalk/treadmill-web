@@ -7,6 +7,7 @@ const path = require('path');
 const crypto = require('crypto');
 const https = require('https');
 const { migrate, db, getUserById } = require('./db');
+const { router: calendarRouter, allowedTypes: calendarAllowedTypes } = require('./routes/calendar');
 const {
   authRequired,
   createToken,
@@ -327,19 +328,45 @@ app.post('/api/programs', authRequired, (req, res) => {
 });
 
 app.post('/api/sessions', authRequired, (req, res) => {
-  const { programId = null, durationSeconds = null, notes = '', details = null } = req.body;
+  const {
+    programId = null,
+    durationSeconds = null,
+    notes = '',
+    details = null,
+    sessionType = 'other',
+    startedAt = null,
+  } = req.body;
   const stmt = db.prepare(
     `INSERT INTO sessions (user_id, program_id, duration_seconds, notes, details)
      VALUES (?, ?, ?, ?, ?)`
   );
-  const result = stmt.run(
+  const inserted = stmt.run(
     req.user.id,
     programId,
     durationSeconds,
     notes,
     details ? JSON.stringify(details) : null
   );
-  res.status(201).json({ sessionId: result.lastInsertRowid });
+  const type = calendarAllowedTypes.has(sessionType) ? sessionType : 'other';
+  const parsedDuration = durationSeconds !== null ? Number(durationSeconds) : null;
+  const durationSec = Number.isNaN(parsedDuration) ? null : parsedDuration;
+  const startDate = startedAt ? new Date(startedAt) : new Date();
+  const startIso = Number.isNaN(startDate.getTime())
+    ? new Date().toISOString()
+    : startDate.toISOString();
+  const endIso =
+    durationSec !== null && !Number.isNaN(durationSec)
+      ? new Date(new Date(startIso).getTime() + durationSec * 1000).toISOString()
+      : startIso;
+
+  const workoutId = crypto.randomUUID();
+  db.prepare(
+    `INSERT INTO workout_sessions
+      (id, user_id, template_id, session_type, started_at, ended_at, duration_sec, notes, source, treadmill_state_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL)`
+  ).run(workoutId, req.user.id, null, type, startIso, endIso, durationSec, notes || '');
+
+  res.status(201).json({ sessionId: inserted.lastInsertRowid, workoutSessionId: workoutId });
 });
 
 app.get('/api/sessions/recent', authRequired, (req, res) => {
@@ -360,6 +387,35 @@ app.get('/api/sessions/recent', authRequired, (req, res) => {
     }));
   res.json({ sessions: rows });
 });
+
+app.get('/api/sessions', authRequired, (req, res) => {
+  const { date } = req.query;
+  if (!date) return res.status(400).json({ error: 'date krävs (YYYY-MM-DD)' });
+  const rows = db
+    .prepare(
+      `SELECT id, user_id, template_id, session_type, started_at, ended_at, duration_sec, notes, source, treadmill_state_json, created_at
+       FROM workout_sessions
+       WHERE user_id = ? AND date(COALESCE(started_at, ended_at, created_at)) = date(?)
+       ORDER BY started_at DESC`
+    )
+    .all(req.user.id, date);
+
+  res.json({ sessions: rows });
+});
+
+app.get('/api/sessions/:id', authRequired, (req, res) => {
+  const session = db
+    .prepare(
+      `SELECT id, user_id, template_id, session_type, started_at, ended_at, duration_sec, notes, source, treadmill_state_json, created_at
+       FROM workout_sessions
+       WHERE id = ? AND user_id = ?`
+    )
+    .get(req.params.id, req.user.id);
+  if (!session) return res.status(404).json({ error: 'Sessionen finns inte' });
+  res.json({ session });
+});
+
+app.use('/api/calendar', calendarRouter);
 
 // Fallback för SPA - servera index.html för alla andra GET:ar som inte är /api
 app.get(/^(?!\/api).*/, (req, res) => {
