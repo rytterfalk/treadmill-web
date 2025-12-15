@@ -545,6 +545,162 @@ button.tiny {
   font-weight: 600;
 }
 
+.weekbars {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.4rem;
+  min-height: 180px;
+  padding: 0.5rem 0;
+}
+
+.weekbar-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  width: 32px;
+}
+
+.weekbar-day .bar {
+  width: 18px;
+  border-radius: 10px;
+  background: linear-gradient(160deg, #2fa8cc, #6ed7a6);
+  min-height: 8px;
+}
+
+.weekbar-day .bar.cap {
+  background: linear-gradient(160deg, #ff7a7a, #ffb347);
+  box-shadow: 0 8px 18px rgba(255, 122, 122, 0.25);
+}
+
+.weekbar-day .bar-date {
+  font-size: 0.78rem;
+  color: #7a8699;
+}
+
+.weekbar-legend {
+  margin-top: 0.4rem;
+  font-size: 0.9rem;
+  color: #4f5866;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.weekbar-legend .dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.weekbar-legend .dot.blue {
+  background: #2fa8cc;
+}
+
+.weekbar-legend .dot.cap {
+  background: #ff7a7a;
+}
+
+.legend-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.calendar-grid {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  margin: 0.8rem 0;
+}
+
+.calendar-day {
+  text-align: left;
+  background: #f7f9fd;
+  border: 1px solid #e1e7f1;
+  border-radius: 12px;
+  padding: 0.8rem;
+  position: relative;
+}
+
+.calendar-day.active {
+  border-color: #2fa8cc;
+  box-shadow: 0 10px 22px rgba(47, 168, 204, 0.18);
+  background: #e9f8ff;
+}
+
+.calendar-date {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.calendar-date .day-number {
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.calendar-date .weekday {
+  color: #7a8699;
+  font-size: 0.9rem;
+}
+
+.calendar-icons {
+  margin: 0.4rem 0;
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.calendar-icons .icon {
+  font-size: 1.1rem;
+}
+
+.calendar-meta {
+  display: flex;
+  justify-content: space-between;
+  color: #4f5866;
+  font-size: 0.95rem;
+}
+
+.cap-flag {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  background: #ffefc3;
+  color: #a45b00;
+  padding: 0.18rem 0.45rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  border: 1px solid #f2d48a;
+}
+
+.day-session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.day-session {
+  padding: 0.75rem 0.9rem;
+  border-radius: 10px;
+  background: #f7f9fd;
+  border: 1px solid #e1e7f1;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: #eef7ff;
+  color: #2f6ba0;
+  padding: 0.35rem 0.65rem;
+  border-radius: 10px;
+  border: 1px solid #cde6ff;
+}
+
 @media (max-width: 900px) {
   .panel.hero {
     grid-column: span 1;

@@ -6,6 +6,8 @@ import ProgramEditor from './components/ProgramEditor';
 import WorkoutTimer from './components/WorkoutTimer';
 import EquipmentSelector from './components/EquipmentSelector';
 import SessionList from './components/SessionList';
+import WeekBars from './components/WeekBars';
+import CalendarGrid from './components/CalendarGrid';
 
 const defaultExercises = [
   { title: 'Jumping Jacks', durationSeconds: 30, restSeconds: 5, notes: '' },
@@ -41,6 +43,23 @@ function App() {
   const [authForm, setAuthForm] = useState({ name: '', email: '', password: '' });
   const [status, setStatus] = useState('');
   const [recentSessions, setRecentSessions] = useState([]);
+  const [calendarDays, setCalendarDays] = useState([]);
+  const [weekBarDays, setWeekBarDays] = useState([]);
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const today = new Date();
+    return today.toISOString().slice(0, 10);
+  });
+  const [daySessions, setDaySessions] = useState([]);
+  const [pointsCap, setPointsCap] = useState(60);
+  const [calendarRange] = useState(() => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - 27); // 28 dagar
+    return {
+      from: start.toISOString().slice(0, 10),
+      to: end.toISOString().slice(0, 10),
+    };
+  });
 
   useEffect(() => {
     loadEquipment();
@@ -53,6 +72,20 @@ function App() {
       loadSessions();
     }
   }, [user]);
+
+    if (user && view === 'calendar') {
+      loadCalendar();
+      loadWeekBars();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, view, calendarRange.from, calendarRange.to]);
+
+  useEffect(() => {
+    if (user && view === 'calendar' && selectedDate) {
+      loadDaySessions(selectedDate);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, view, selectedDate]);
 
   const selectedProgram = useMemo(
     () =>
@@ -188,9 +221,15 @@ function App() {
           durationSeconds: payload.durationSeconds,
           notes: payload.notes || '',
           details: payload.details || null,
+          sessionType: 'hiit',
+          startedAt: payload.startedAt || null,
         }),
       });
       loadSessions();
+      if (view === 'calendar') {
+        loadCalendar();
+        if (selectedDate) loadDaySessions(selectedDate);
+      }
     } catch (err) {
       setStatus(err.message);
     }
@@ -202,6 +241,41 @@ function App() {
       setRecentSessions(data.sessions);
     } catch (err) {
       // ignore when logged out
+    }
+  }
+
+  async function loadCalendar() {
+    try {
+      const data = await api(
+        `/api/calendar/summary?from=${calendarRange.from}&to=${calendarRange.to}`
+      );
+      setCalendarDays(data.days || []);
+      if (data.cap) setPointsCap(data.cap);
+      if (!selectedDate || selectedDate < calendarRange.from || selectedDate > calendarRange.to) {
+        const last = data.days?.[data.days.length - 1];
+        if (last) setSelectedDate(last.date);
+      }
+    } catch (err) {
+      setStatus(err.message);
+    }
+  }
+
+  async function loadWeekBars() {
+    try {
+      const data = await api('/api/calendar/weekbars?weeks=8');
+      setWeekBarDays(data.days || []);
+      if (data.cap) setPointsCap(data.cap);
+    } catch (err) {
+      setStatus(err.message);
+    }
+  }
+
+  async function loadDaySessions(date) {
+    try {
+      const data = await api(`/api/sessions?date=${date}`);
+      setDaySessions(data.sessions || []);
+    } catch (err) {
+      setStatus(err.message);
     }
   }
 
@@ -266,6 +340,76 @@ function App() {
   }
 
   const equipmentSlugs = userEquipment.map((e) => e.slug);
+
+  if (view === 'calendar') {
+    return (
+      <div className="page">
+        <NavBar
+          user={user}
+          view={view}
+          onChangeView={setView}
+          onLogout={handleLogout}
+          onNewProgram={() => setView('builder')}
+        />
+
+        {status && <div className="status floating">{status}</div>}
+
+        <div className="grid">
+          <section className="panel hero">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Top-bars</p>
+                <h2>Senaste 8 veckor</h2>
+              </div>
+              <span className="badge">Cap {pointsCap}p/dag</span>
+            </div>
+            <WeekBars days={weekBarDays} cap={pointsCap} />
+          </section>
+
+          <section className="panel">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Kalender</p>
+                <h2>28 dagar</h2>
+              </div>
+            </div>
+            <CalendarGrid days={calendarDays} selectedDate={selectedDate} onSelect={setSelectedDate} />
+
+            <div className="panel-header" style={{ marginTop: '1rem' }}>
+              <div>
+                <p className="eyebrow">Pass</p>
+                <h2>{selectedDate}</h2>
+              </div>
+            </div>
+            {daySessions?.length ? (
+              <div className="day-session-list">
+                {daySessions.map((s) => (
+                  <div key={s.id} className="day-session">
+                    <div className="session-title">
+                      {s.session_type || 'other'} • {s.duration_sec ? `${s.duration_sec}s` : 'okänd tid'}
+                    </div>
+                    <div className="session-meta">
+                      {s.started_at
+                        ? new Date(s.started_at).toLocaleTimeString('sv-SE', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : '—'}
+                      {' • '}
+                      {s.source}
+                    </div>
+                    {s.notes && <p className="session-notes">{s.notes}</p>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p>Inga pass den dagen.</p>
+            )}
+          </section>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="page">

@@ -17,6 +17,12 @@ function NavBar({ user, view, onChangeView, onLogout, onNewProgram }) {
           Översikt
         </button>
         <button
+          className={view === 'calendar' ? 'menu-item active' : 'menu-item'}
+          onClick={() => onChangeView('calendar')}
+        >
+          Kalender
+        </button>
+        <button
           className={view === 'equipment' ? 'menu-item active' : 'menu-item'}
           onClick={() => onChangeView('equipment')}
         >
