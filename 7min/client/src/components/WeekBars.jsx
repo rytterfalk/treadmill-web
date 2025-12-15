@@ -9,6 +9,11 @@ const ICONS = {
 function WeekBars({ days, cap }) {
   if (!days?.length) return <p>Ingen data ännu.</p>;
 
+  const hasData = days.some((d) => (d?.points || 0) > 0 || d?.hitCap);
+  if (!hasData) {
+    return <p>Ingen data ännu.</p>;
+  }
+
   return (
     <div className="weekbars">
       {days.map((day) => {
