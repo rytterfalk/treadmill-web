@@ -105,9 +105,6 @@ function WorkoutTimer({ program, exercises, onComplete, stats }) {
     setStatus('idle');
     setElapsed(0);
     setCountdown(3);
-    setRounds(1);
-    setRestBetweenExercises(10);
-    setRestBetweenRounds(40);
   }, [scheduleKey]);
 
   useEffect(() => {
@@ -281,9 +278,6 @@ function WorkoutTimer({ program, exercises, onComplete, stats }) {
     setRemaining(schedule[0]?.duration || 0);
     setElapsed(0);
     setCountdown(3);
-    setRounds(1);
-    setRestBetweenExercises(10);
-    setRestBetweenRounds(40);
     onComplete?.({
       status: 'aborted',
       durationSeconds: elapsedSeconds,
@@ -376,7 +370,15 @@ function WorkoutTimer({ program, exercises, onComplete, stats }) {
             type="number"
             min="1"
             value={rounds}
-            onChange={(e) => setRounds(Math.max(1, Number(e.target.value) || 1))}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === '') {
+                setRounds('');
+                return;
+              }
+              const num = Number(val);
+              setRounds(Math.max(1, Number.isNaN(num) ? 1 : num));
+            }}
           />
         </label>
         <label>
@@ -385,7 +387,15 @@ function WorkoutTimer({ program, exercises, onComplete, stats }) {
             type="number"
             min="0"
             value={restBetweenExercises}
-            onChange={(e) => setRestBetweenExercises(Math.max(0, Number(e.target.value) || 0))}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === '') {
+                setRestBetweenExercises('');
+                return;
+              }
+              const num = Number(val);
+              setRestBetweenExercises(Math.max(0, Number.isNaN(num) ? 0 : num));
+            }}
           />
         </label>
         <label>
@@ -394,7 +404,15 @@ function WorkoutTimer({ program, exercises, onComplete, stats }) {
             type="number"
             min="0"
             value={restBetweenRounds}
-            onChange={(e) => setRestBetweenRounds(Math.max(0, Number(e.target.value) || 0))}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === '') {
+                setRestBetweenRounds('');
+                return;
+              }
+              const num = Number(val);
+              setRestBetweenRounds(Math.max(0, Number.isNaN(num) ? 0 : num));
+            }}
           />
         </label>
       </div>
