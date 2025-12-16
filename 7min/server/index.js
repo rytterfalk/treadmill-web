@@ -238,6 +238,18 @@ app.get('/api/programs/:id', (req, res) => {
   res.json({ program, exercises: withExerciseMedia(exercises) });
 });
 
+app.delete('/api/programs/:id', authRequired, (req, res) => {
+  const program = db
+    .prepare('SELECT id, user_id, is_public FROM programs WHERE id = ?')
+    .get(req.params.id);
+  if (!program) return res.status(404).json({ error: 'Programmet finns inte' });
+  if (!program.user_id || program.user_id !== req.user.id) {
+    return res.status(403).json({ error: 'Du kan bara ta bort dina egna pass' });
+  }
+  db.prepare('DELETE FROM programs WHERE id = ?').run(program.id);
+  res.json({ ok: true, deletedId: program.id });
+});
+
 app.post('/api/programs', authRequired, (req, res) => {
   const { title, description = '', rounds = 1, exercises = [], isPublic = false } = req.body;
   if (!title || !Array.isArray(exercises) || exercises.length === 0) {

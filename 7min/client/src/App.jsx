@@ -245,6 +245,25 @@ function App() {
     }
   }
 
+  async function handleDeleteProgram(id) {
+    try {
+      await api(`/api/programs/${id}`, { method: 'DELETE' });
+      setPrograms((prev) => prev.filter((p) => p.id !== id));
+      setProgramDetails((prev) => {
+        const copy = { ...prev };
+        delete copy[id];
+        return copy;
+      });
+      if (selectedProgramId === id) {
+        const next = programs.find((p) => p.id !== id);
+        setSelectedProgramId(next?.id || null);
+      }
+      setStatus('Pass borttaget');
+    } catch (err) {
+      setStatus(err.message);
+    }
+  }
+
   async function handleSessionComplete(payload) {
     if (!user) return;
     try {
@@ -497,6 +516,20 @@ function App() {
                   >
                     ✏️ Editera
                   </button>
+                  {program.user_id && (
+                    <button
+                      type="button"
+                      className="ghost tiny danger"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (window.confirm('Ta bort detta pass?')) {
+                          handleDeleteProgram(program.id);
+                        }
+                      }}
+                    >
+                      🗑 Ta bort
+                    </button>
+                  )}
                 </div>
               </button>
             ))}

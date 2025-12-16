@@ -137,6 +137,7 @@
   margin-top: 0.4rem;
   display: flex;
   justify-content: flex-end;
+  gap: 0.4rem;
 }
 
 .timer-shell {
@@ -709,6 +710,11 @@ button.tiny {
   padding: 0.35rem 0.65rem;
   border-radius: 10px;
   border: 1px solid #cde6ff;
+}
+
+.ghost.danger {
+  border-color: #f2b6b6;
+  color: #a11a1a;
 }
 
 @media (max-width: 900px) {

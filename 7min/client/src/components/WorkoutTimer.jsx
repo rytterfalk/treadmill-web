@@ -266,25 +266,26 @@ function WorkoutTimer({ program, exercises, onComplete, stats }) {
       : 0;
 
   const nextStep = schedule[stepIndex + 1];
+  const totalMinutes =
+    stats?.totalSeconds && !Number.isNaN(Number(stats.totalSeconds))
+      ? Math.max(1, Math.round(stats.totalSeconds / 60))
+      : Math.max(1, Math.round(totalDuration / 60));
 
   return (
     <div className="timer-shell">
       <div className="time-row">
         <div>
-          <p className="eyebrow">Aktuellt moment</p>
-          <div className="time-display">
-            {status === 'countdown'
-              ? `${countdown}`
-              : `${String(remaining || 0).padStart(2, '0')}s`}
-          </div>
+          <p className="eyebrow">Total tid</p>
+          <div className="time-display">{totalMinutes} min</div>
           <div className="step-title">
-            {status === 'countdown'
-              ? 'Start om några sekunder'
-              : currentStep?.label || 'Välj ett pass'}
+            {status === 'countdown' ? 'Nedräkning' : currentStep?.label || 'Välj ett pass'}
           </div>
           <div className="step-meta">
-            Varv {currentStep?.round || 1} / {rounds} •{' '}
-            {currentStep?.type === 'exercise' ? 'Kör hårt' : 'Vila'}
+            {status === 'countdown'
+              ? `${countdown}s`
+              : `${String(remaining || 0).padStart(2, '0')}s kvar • Varv ${
+                  currentStep?.round || 1
+                } / ${rounds}`}
           </div>
         </div>
         <div className="next-block">
