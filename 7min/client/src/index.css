@@ -1,16 +1,58 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
+/* ═══════════════════════════════════════════════════════════
+   DARK THEME DESIGN SYSTEM
+   Modern, mobile-first with yellow/orange accents on dark gray
+   ═══════════════════════════════════════════════════════════ */
+
 :root {
-  --ink: #0f0b06;
-  --sand: #fff7cf;
-  --sun: #f8d84c;
-  --sun-strong: #f6c500;
-  --card: #ffffff;
-  --muted: #4a4a4a;
-  --border: #e6dcb2;
+  /* Core colors */
+  --bg-dark: #1a1a1a;
+  --bg-card: #252525;
+  --bg-card-hover: #2d2d2d;
+  --bg-elevated: #333333;
+
+  /* Accent colors */
+  --accent: #f7c72b;
+  --accent-hover: #ffd84d;
+  --accent-orange: #f59e0b;
+  --accent-gradient: linear-gradient(135deg, #f7c72b 0%, #f59e0b 100%);
+
+  /* Text colors */
+  --text-primary: #ffffff;
+  --text-secondary: #b0b0b0;
+  --text-muted: #707070;
+  --text-on-accent: #1a1a1a;
+
+  /* Border colors */
+  --border: #3a3a3a;
+  --border-accent: #f7c72b;
+
+  /* Semantic colors */
+  --success: #22c55e;
+  --danger: #ef4444;
+  --info: #3b82f6;
+
+  /* Shadows */
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
+  --shadow-md: 0 8px 24px rgba(0,0,0,0.4);
+  --shadow-lg: 0 16px 48px rgba(0,0,0,0.5);
+  --shadow-accent: 0 8px 24px rgba(247, 199, 43, 0.25);
+
+  /* Touch targets - minimum 48px for mobile */
+  --touch-target: 48px;
+  --touch-target-sm: 44px;
+
+  /* Border radius */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-full: 999px;
+
   font-family: 'Space Grotesk', 'Inter', system-ui, -apple-system, sans-serif;
-  color: var(--ink);
-  background-color: var(--sand);
+  color: var(--text-primary);
+  background-color: var(--bg-dark);
   line-height: 1.6;
 }
 
@@ -21,16 +63,18 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background:
-    radial-gradient(circle at 20% 20%, rgba(255, 235, 128, 0.35), transparent 32%),
-    radial-gradient(circle at 78% 10%, rgba(255, 220, 90, 0.25), transparent 36%),
-    linear-gradient(180deg, #ffcc00 0%, #ffd84f 55%, #ffcc00 100%);
-  color: var(--ink);
+  min-height: 100dvh;
+  background: var(--bg-dark);
+  color: var(--text-primary);
 }
 
 a {
-  color: inherit;
+  color: var(--accent);
   text-decoration: none;
+}
+
+a:hover {
+  color: var(--accent-hover);
 }
 
 #root {
@@ -39,82 +83,164 @@ a {
 
 button,
 input,
-textarea {
+textarea,
+select {
   font-family: inherit;
 }
 
+/* ═══════════════════════════════════════════════════════════
+   BUTTONS - Touch-friendly with proper sizing
+   ═══════════════════════════════════════════════════════════ */
+
 button {
   cursor: pointer;
-  border: 1px solid #2fa8cc;
-  border-radius: 12px;
-  padding: 0.65rem 1.1rem;
-  background: linear-gradient(120deg, #2fa8cc, #6ed7a6);
-  color: #0b1b2b;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1.4rem;
+  min-height: var(--touch-target);
+  background: var(--accent-gradient);
+  color: var(--text-on-accent);
   font-weight: 700;
+  font-size: 1rem;
   transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 22px rgba(47, 168, 204, 0.25);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-accent);
+}
+
+button:active {
+  transform: translateY(0);
 }
 
 button.ghost {
-  background: #f2f5fa;
-  border-color: #dbe3f0;
-  color: #1f2533;
+  background: var(--bg-card);
+  border: 2px solid var(--border);
+  color: var(--text-primary);
 }
 
+button.ghost:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--accent);
+  box-shadow: none;
+}
+
+button.secondary {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+button.danger {
+  background: var(--danger);
+  color: white;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   FORM INPUTS
+   ═══════════════════════════════════════════════════════════ */
+
 input,
-textarea {
+textarea,
+select {
   width: 100%;
-  background: #f8fbff;
-  border: 1px solid #d6deeb;
-  border-radius: 10px;
-  padding: 0.75rem 0.85rem;
-  color: #1f2533;
+  background: var(--bg-card);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+  min-height: var(--touch-target);
+  color: var(--text-primary);
+  font-size: 1rem;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(247, 199, 43, 0.2);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
 }
 
 label {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.5rem;
   font-size: 0.95rem;
-  color: #4a5468;
+  font-weight: 600;
+  color: var(--text-secondary);
 }
 
 textarea {
   resize: vertical;
+  min-height: 100px;
 }
 
+/* ═══════════════════════════════════════════════════════════
+   TYPOGRAPHY
+   ═══════════════════════════════════════════════════════════ */
+
 .eyebrow {
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #1a87c6;
+  color: var(--accent);
   font-size: 0.75rem;
+  font-weight: 600;
   margin: 0;
 }
 
-h1,
-h2,
-h3 {
+h1, h2, h3 {
   margin: 0.2rem 0 0.6rem;
+  color: var(--text-primary);
 }
 
+h1 { font-size: clamp(1.8rem, 5vw, 2.5rem); }
+h2 { font-size: clamp(1.4rem, 4vw, 1.8rem); }
+h3 { font-size: clamp(1.1rem, 3vw, 1.3rem); }
+
+/* ═══════════════════════════════════════════════════════════
+   UI COMPONENTS
+   ═══════════════════════════════════════════════════════════ */
+
 .badge {
-  background: #e7f4ff;
-  color: #1f4b7a;
-  padding: 0.35rem 0.75rem;
-  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(247, 199, 43, 0.15);
+  color: var(--accent);
+  padding: 0.4rem 0.8rem;
+  border-radius: var(--radius-full);
   font-size: 0.85rem;
+  font-weight: 600;
+  border: 1px solid rgba(247, 199, 43, 0.3);
 }
 
 .status {
   margin-top: 1rem;
-  padding: 0.85rem 1rem;
-  border-radius: 12px;
-  background: #e4f7ef;
-  border: 1px solid #b4e4c7;
+  padding: 1rem 1.2rem;
+  border-radius: var(--radius-md);
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: var(--success);
+}
+
+.status.error {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: var(--danger);
 }
 
 .status.floating {
@@ -137,23 +263,66 @@ h3 {
 .link-button {
   background: none;
   border: none;
-  color: #1a87c6;
+  color: var(--accent);
   padding: 0;
+  min-height: auto;
+  font-weight: 600;
+}
+
+.link-button:hover {
+  color: var(--accent-hover);
+  box-shadow: none;
+  transform: none;
 }
 
 .tag {
   display: inline-block;
-  padding: 0.4rem 0.8rem;
-  background: #eef4fb;
-  border-radius: 999px;
-  border: 1px solid #d6deeb;
+  padding: 0.45rem 0.9rem;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   font-size: 0.8rem;
+  color: var(--text-secondary);
 }
 
 .lede {
-  color: #3b4556;
+  color: var(--text-secondary);
   font-size: 1.05rem;
   max-width: 56ch;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PILL TOGGLE (like your reference image)
+   ═══════════════════════════════════════════════════════════ */
+
+.pill-toggle {
+  display: inline-flex;
+  background: var(--bg-dark);
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-full);
+  padding: 4px;
+  gap: 4px;
+}
+
+.pill-toggle button {
+  padding: 0.6rem 1.2rem;
+  min-height: 40px;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-secondary);
+  font-weight: 600;
+  border: none;
+}
+
+.pill-toggle button:hover {
+  transform: none;
+  box-shadow: none;
+  color: var(--text-primary);
+}
+
+.pill-toggle button.active {
+  background: var(--accent);
+  color: var(--text-on-accent);
 }
