@@ -289,7 +289,7 @@ function ProgramEditor({ prefill, onSave }) {
               checked={isPublic}
               onChange={(e) => setIsPublic(e.target.checked)}
             />
-            Dela till andra konton
+            Visa för alla
           </label>
         </div>
 

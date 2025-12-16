@@ -257,7 +257,7 @@
 
 .exercise-row {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: 50px 1fr auto;
   gap: 0.7rem;
   align-items: center;
   padding: 0.7rem;
@@ -286,6 +286,11 @@
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+}
+
+.exercise-row .icon-only {
+  align-self: flex-start;
+  margin-top: 0.4rem;
 }
 
 .exercise-row .inline input {
@@ -472,9 +477,9 @@ button.tiny {
   place-items: center;
   position: relative;
   overflow: hidden;
-  background: radial-gradient(circle at 20% 20%, rgba(255, 216, 64, 0.35), transparent 32%),
-    radial-gradient(circle at 80% 0%, rgba(255, 178, 36, 0.24), transparent 34%),
-    linear-gradient(180deg, #f9e282 0%, #f4c637 45%, #e0a918 100%);
+  background: radial-gradient(circle at 20% 20%, rgba(255, 232, 94, 0.35), transparent 32%),
+    radial-gradient(circle at 80% 0%, rgba(255, 209, 64, 0.26), transparent 34%),
+    linear-gradient(180deg, #ffcc00 0%, #ffd84f 45%, #ffcc00 100%);
 }
 
 .auth-title {
