@@ -111,6 +111,41 @@ function App() {
     }));
   }, [programDetails, selectedProgramId]);
 
+  const programStats = useMemo(() => {
+    const stats = {};
+    programs.forEach((p) => {
+      const detail = programDetails[p.id];
+      if (!detail?.exercises?.length) return;
+      const rounds = Number(detail.program?.rounds || p.rounds || 1) || 1;
+      const baseSeconds = detail.exercises.reduce((sum, ex) => {
+        const dur = Number(ex.duration_seconds) || 0;
+        const rest = Number(ex.rest_seconds) || 0;
+        return sum + dur + rest;
+      }, 0);
+      stats[p.id] = {
+        totalSeconds: baseSeconds * rounds,
+        moments: detail.exercises.length,
+      };
+    });
+    return stats;
+  }, [programDetails, programs]);
+
+  const selectedProgramStats = useMemo(() => {
+    if (!selectedExercises.length) return { totalSeconds: 0, moments: 0 };
+    const rounds = Number(
+      selectedProgram?.rounds || programDetails[selectedProgramId]?.program?.rounds || 1
+    ) || 1;
+    const baseSeconds = selectedExercises.reduce((sum, ex) => {
+      const dur = Number(ex.durationSeconds) || 0;
+      const rest = Number(ex.restSeconds) || 0;
+      return sum + dur + rest;
+    }, 0);
+    return {
+      totalSeconds: baseSeconds * rounds,
+      moments: selectedExercises.length,
+    };
+  }, [selectedExercises, selectedProgram, selectedProgramId, programDetails]);
+
   async function checkSession() {
     try {
       const data = await api('/api/me');
@@ -442,7 +477,27 @@ function App() {
                 <div className="program-meta">
                   {program.rounds} varv • {program.is_public ? 'Delad' : 'Privat'}
                 </div>
+                <div className="program-meta subtle">
+                  {programStats[program.id]
+                    ? `${Math.round(programStats[program.id].totalSeconds / 60)} min • ${
+                        programStats[program.id].moments
+                      } moment`
+                    : '— min • — moment'}
+                </div>
                 <p className="program-desc">{program.description || 'Inget upplägg än'}</p>
+                <div className="card-actions">
+                  <button
+                    type="button"
+                    className="ghost tiny"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      selectProgram(program.id);
+                      setView('builder');
+                    }}
+                  >
+                    ✏️ Editera
+                  </button>
+                </div>
               </button>
             ))}
             {!programs.length && <p>Du har inga pass än. Skapa ett via Bygg-läget.</p>}
@@ -464,6 +519,7 @@ function App() {
               rounds: selectedProgram?.rounds || 1,
             }}
             exercises={selectedExercises.length ? selectedExercises : defaultExercises}
+            stats={selectedProgramStats}
             onComplete={handleSessionComplete}
           />
         </section>

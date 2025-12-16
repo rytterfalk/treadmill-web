@@ -29,9 +29,10 @@ function playTone(frequency = 720) {
   }
 }
 
-function WorkoutTimer({ program, exercises, onComplete }) {
+function WorkoutTimer({ program, exercises, onComplete, stats }) {
   const rounds = Math.max(program?.rounds || 1, 1);
   const voicePlayerRef = useRef(null);
+  const [showSteps, setShowSteps] = useState(false);
 
   const schedule = useMemo(() => {
     if (!exercises?.length) return [];
@@ -292,6 +293,10 @@ function WorkoutTimer({ program, exercises, onComplete }) {
           <div className="next-meta">
             {nextStep ? `${nextStep.duration}s` : 'Du är klar när timern når noll'}
           </div>
+          <div className="next-meta">
+            {stats?.moments ? `${stats.moments} moment` : '— moment'} •{' '}
+            {stats?.totalSeconds ? `${Math.round(stats.totalSeconds / 60)} min` : '— min'}
+          </div>
         </div>
       </div>
 
@@ -317,29 +322,34 @@ function WorkoutTimer({ program, exercises, onComplete }) {
         <button className="ghost" onClick={reset}>
           Nollställ
         </button>
+        <button className="ghost" onClick={() => setShowSteps((v) => !v)}>
+          {showSteps ? 'Dölj moment' : 'Visa moment'}
+        </button>
       </div>
 
-      <div className="mini-steps">
-        {schedule
-          .map((step, idx) => ({ step, idx }))
-          .filter(({ step }) => step.type === 'exercise')
-          .map(({ step, idx }) => {
-            const currentExerciseIndex =
-              step.type === 'exercise' ? idx === stepIndex : false;
-            const done = idx < stepIndex;
-            return (
-              <div
-                key={`${step.label}-${idx}`}
-                className={`mini-step ${currentExerciseIndex ? 'active' : done ? 'done' : ''}`}
-              >
-                <div className="mini-label">{step.label}</div>
-                <div className="mini-meta">
-                  {step.duration}s • Varv {step.round}
+      {showSteps && (
+        <div className="mini-steps">
+          {schedule
+            .map((step, idx) => ({ step, idx }))
+            .filter(({ step }) => step.type === 'exercise')
+            .map(({ step, idx }) => {
+              const currentExerciseIndex =
+                step.type === 'exercise' ? idx === stepIndex : false;
+              const done = idx < stepIndex;
+              return (
+                <div
+                  key={`${step.label}-${idx}`}
+                  className={`mini-step ${currentExerciseIndex ? 'active' : done ? 'done' : ''}`}
+                >
+                  <div className="mini-label">{step.label}</div>
+                  <div className="mini-meta">
+                    {step.duration}s • Varv {step.round}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-      </div>
+              );
+            })}
+        </div>
+      )}
     </div>
   );
 }

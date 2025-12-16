@@ -124,9 +124,19 @@
   font-size: 0.9rem;
 }
 
+.program-meta.subtle {
+  color: #7a8699;
+}
+
 .program-desc {
   margin: 0.2rem 0 0;
   color: #4f5866;
+}
+
+.card-actions {
+  margin-top: 0.4rem;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .timer-shell {
