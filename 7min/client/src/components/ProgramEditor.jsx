@@ -234,6 +234,7 @@ function ProgramEditor({ prefill, onSave }) {
         setExercisePatch(index, {
           halfAudioAssetId: data.asset.id,
           halfAudioUrl: data.asset.url,
+          halfAudioMime: mime,
           uploadingAudio: false,
         });
         setStatus('Halvtidsljud sparat!');
@@ -241,6 +242,7 @@ function ProgramEditor({ prefill, onSave }) {
         setExercisePatch(index, {
           audioAssetId: data.asset.id,
           audioUrl: data.asset.url,
+          audioMime: mime,
           uploadingAudio: false,
         });
         setStatus('Ljud sparat!');
@@ -256,11 +258,17 @@ function ProgramEditor({ prefill, onSave }) {
       setExercisePatch(index, {
         halfAudioAssetId: null,
         halfAudioUrl: null,
+        halfAudioMime: null,
         uploadingAudio: false,
       });
       return;
     }
-    setExercisePatch(index, { audioAssetId: null, audioUrl: null, uploadingAudio: false });
+    setExercisePatch(index, {
+      audioAssetId: null,
+      audioUrl: null,
+      audioMime: null,
+      uploadingAudio: false,
+    });
   }
 
   useEffect(() => () => stopStream(), []);
@@ -387,7 +395,7 @@ function ProgramEditor({ prefill, onSave }) {
                         }
                         onLoadedData={() => setStatus('')}
                         preload="auto"
-                        type="audio/webm"
+                        type={ex.audioMime || undefined}
                       >
                         Din browser stöder inte uppspelning.
                       </audio>
@@ -425,7 +433,7 @@ function ProgramEditor({ prefill, onSave }) {
                         }
                         onLoadedData={() => setStatus('')}
                         preload="auto"
-                        type="audio/webm"
+                        type={ex.halfAudioMime || undefined}
                       >
                         Din browser stöder inte uppspelning.
                       </audio>
