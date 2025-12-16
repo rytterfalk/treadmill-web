@@ -160,6 +160,18 @@ function ProgramEditor({ prefill, onSave }) {
     }
   }
 
+  const preferredMimeTypes = ['audio/mp4;codecs=aac', 'audio/webm;codecs=opus', 'audio/ogg'];
+
+  function pickSupportedMime() {
+    if (!window.MediaRecorder || !window.MediaRecorder.isTypeSupported) {
+      return { mimeType: 'audio/webm' };
+    }
+    for (const t of preferredMimeTypes) {
+      if (MediaRecorder.isTypeSupported(t)) return { mimeType: t };
+    }
+    return { mimeType: 'audio/webm' };
+  }
+
   async function startRecording(index, { half = false } = {}) {
     if (!navigator.mediaDevices?.getUserMedia) {
       setStatus('Din browser saknar stöd eller blockerar inspelning.');
@@ -178,13 +190,14 @@ function ProgramEditor({ prefill, onSave }) {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
       chunksRef.current = [];
-      const recorder = new MediaRecorder(stream);
+      const recorder = new MediaRecorder(stream, pickSupportedMime());
       mediaRecorderRef.current = recorder;
       recorder.ondataavailable = (e) => {
         if (e.data?.size) chunksRef.current.push(e.data);
       };
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        const mimeType = recorder.mimeType || 'audio/webm';
+        const blob = new Blob(chunksRef.current, { type: mimeType });
         uploadAudio(index, blob, { half });
         stopStream();
         setRecordingIdx(null);
