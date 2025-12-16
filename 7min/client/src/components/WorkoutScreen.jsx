@@ -107,23 +107,25 @@ function WorkoutScreen({ programId }) {
     return { totalSeconds: baseSeconds * rounds, moments: exercises.length };
   }, [program, exercises]);
 
-  if (status === 'loading') {
-    return (
-      <>
-        <style>{`/* workout fullscreen overlay */
+  const WORKOUT_CSS = `/* workout fullscreen overlay */
 .workout-screen{
   position: fixed;
-  inset: 0;
-  z-index: 9999;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2147483647;
+  background: #f3d35a; /* gul */
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   width: 100vw;
   height: 100svh;
   height: 100dvh;
-  background: #f3d35a; /* gul */
-  overflow: hidden;
-  -webkit-overflow-scrolling: touch;
   overscroll-behavior: none;
 }
 .workout-header{
+  flex: 0 0 auto;
   display:flex;
   align-items:flex-start;
   justify-content:space-between;
@@ -134,15 +136,18 @@ function WorkoutScreen({ programId }) {
   padding-right: calc(16px + env(safe-area-inset-right));
 }
 .workout-content{
+  flex: 1 1 auto;
+  min-height: 0;
   display:flex;
   flex-direction:column;
-  min-height:0;
-  height: calc(100svh - 86px);
-  height: calc(100dvh - 86px);
+  overflow: hidden;
   padding: 0 16px;
   padding-left: calc(16px + env(safe-area-inset-left));
   padding-right: calc(16px + env(safe-area-inset-right));
   padding-bottom: calc(16px + env(safe-area-inset-bottom));
+}
+.workout-content > *{
+  min-height: 0;
 }
 .workout-actions .ghost{
   background: rgba(255,255,255,0.55);
@@ -152,10 +157,12 @@ function WorkoutScreen({ programId }) {
   font-weight: 600;
 }
 .workout-lock{ touch-action: none; }
-@media (min-width: 900px){
-  .workout-screen{ max-width: 1100px; margin: 0 auto; left: 50%; transform: translateX(-50%); right: auto; }
-}
-`}</style>
+`;
+
+  if (status === 'loading') {
+    return (
+      <>
+        <style>{WORKOUT_CSS}</style>
         <div className="workout-screen">
           <div className="workout-header">
             <div>
@@ -171,52 +178,7 @@ function WorkoutScreen({ programId }) {
   if (status === 'error') {
     return (
       <>
-        <style>{`/* workout fullscreen overlay */
-.workout-screen{
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  width: 100vw;
-  height: 100svh;
-  height: 100dvh;
-  background: #f3d35a; /* gul */
-  overflow: hidden;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: none;
-}
-.workout-header{
-  display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
-  gap:12px;
-  padding: 14px 16px;
-  padding-top: calc(14px + env(safe-area-inset-top));
-  padding-left: calc(16px + env(safe-area-inset-left));
-  padding-right: calc(16px + env(safe-area-inset-right));
-}
-.workout-content{
-  display:flex;
-  flex-direction:column;
-  min-height:0;
-  height: calc(100svh - 86px);
-  height: calc(100dvh - 86px);
-  padding: 0 16px;
-  padding-left: calc(16px + env(safe-area-inset-left));
-  padding-right: calc(16px + env(safe-area-inset-right));
-  padding-bottom: calc(16px + env(safe-area-inset-bottom));
-}
-.workout-actions .ghost{
-  background: rgba(255,255,255,0.55);
-  border: 1px solid rgba(0,0,0,0.12);
-  border-radius: 12px;
-  padding: 10px 12px;
-  font-weight: 600;
-}
-.workout-lock{ touch-action: none; }
-@media (min-width: 900px){
-  .workout-screen{ max-width: 1100px; margin: 0 auto; left: 50%; transform: translateX(-50%); right: auto; }
-}
-`}</style>
+        <style>{WORKOUT_CSS}</style>
         <div className="workout-screen">
           <div className="workout-header">
             <div>
@@ -232,52 +194,7 @@ function WorkoutScreen({ programId }) {
 
   return (
     <>
-      <style>{`/* workout fullscreen overlay */
-.workout-screen{
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  width: 100vw;
-  height: 100svh;
-  height: 100dvh;
-  background: #f3d35a; /* gul */
-  overflow: hidden;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: none;
-}
-.workout-header{
-  display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
-  gap:12px;
-  padding: 14px 16px;
-  padding-top: calc(14px + env(safe-area-inset-top));
-  padding-left: calc(16px + env(safe-area-inset-left));
-  padding-right: calc(16px + env(safe-area-inset-right));
-}
-.workout-content{
-  display:flex;
-  flex-direction:column;
-  min-height:0;
-  height: calc(100svh - 86px);
-  height: calc(100dvh - 86px);
-  padding: 0 16px;
-  padding-left: calc(16px + env(safe-area-inset-left));
-  padding-right: calc(16px + env(safe-area-inset-right));
-  padding-bottom: calc(16px + env(safe-area-inset-bottom));
-}
-.workout-actions .ghost{
-  background: rgba(255,255,255,0.55);
-  border: 1px solid rgba(0,0,0,0.12);
-  border-radius: 12px;
-  padding: 10px 12px;
-  font-weight: 600;
-}
-.workout-lock{ touch-action: none; }
-@media (min-width: 900px){
-  .workout-screen{ max-width: 1100px; margin: 0 auto; left: 50%; transform: translateX(-50%); right: auto; }
-}
-`}</style>
+      <style>{WORKOUT_CSS}</style>
       <div className="workout-screen" role="application">
         <div className="workout-header">
           <div>
