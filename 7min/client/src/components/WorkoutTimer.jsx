@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 let audioCtx;
 function getAudioContext() {
@@ -106,6 +106,52 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
   const lastAudioPlayedRef = useRef(null);
 
   const currentStep = schedule[stepIndex];
+  const isActive = status === 'running' || status === 'countdown' || status === 'paused';
+
+  // Fullscreen scroll lock when timer is active
+  useLayoutEffect(() => {
+    if (!isActive) return;
+
+    const body = document.body;
+    const html = document.documentElement;
+    const scrollY = window.scrollY || window.pageYOffset || 0;
+
+    // Store previous styles
+    const prev = {
+      bodyOverflow: body.style.overflow,
+      bodyPosition: body.style.position,
+      bodyTop: body.style.top,
+      bodyLeft: body.style.left,
+      bodyRight: body.style.right,
+      bodyWidth: body.style.width,
+      bodyHeight: body.style.height,
+      htmlOverflow: html.style.overflow,
+    };
+
+    // Lock scroll
+    html.classList.add('timer-fullscreen-lock');
+    body.classList.add('timer-fullscreen-lock');
+    body.style.overflow = 'hidden';
+    html.style.overflow = 'hidden';
+    body.style.position = 'fixed';
+    body.style.top = `-${scrollY}px`;
+    body.style.left = '0';
+    body.style.right = '0';
+    body.style.width = '100%';
+
+    return () => {
+      html.classList.remove('timer-fullscreen-lock');
+      body.classList.remove('timer-fullscreen-lock');
+      body.style.overflow = prev.bodyOverflow;
+      body.style.position = prev.bodyPosition;
+      body.style.top = prev.bodyTop;
+      body.style.left = prev.bodyLeft;
+      body.style.right = prev.bodyRight;
+      body.style.width = prev.bodyWidth;
+      html.style.overflow = prev.htmlOverflow;
+      window.scrollTo(0, scrollY);
+    };
+  }, [isActive]);
 
   useEffect(() => {
     setStepIndex(0);
@@ -330,7 +376,6 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
   }, [schedule, stepIndex]);
   const totalMinutes = Math.max(1, Math.round(totalDuration / 60));
   const totalRemaining = Math.max(0, totalDuration - elapsed);
-  const isActive = status === 'running' || status === 'countdown' || status === 'paused';
 
   function jumpToExercise(targetIndex) {
     if (targetIndex == null || !schedule[targetIndex]) return;

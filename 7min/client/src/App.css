@@ -146,12 +146,146 @@
   gap: 0.7rem;
 }
 
+/* Fullscreen overlay when timer is active */
 .timer-shell.full-timer {
-  background: linear-gradient(145deg, #fff4c7, #ffffff);
-  border: 1px solid #ead47e;
-  border-radius: 18px;
-  padding: 0.8rem;
-  box-shadow: 0 18px 60px rgba(240, 195, 63, 0.22);
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  width: 100vw;
+  width: 100dvw;
+  height: 100vh;
+  height: 100dvh;
+  margin: 0;
+  border-radius: 0;
+  border: none;
+  padding: 0;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  background: radial-gradient(circle at 20% 15%, rgba(255,230,100,0.5), transparent 45%),
+              radial-gradient(circle at 85% 10%, rgba(255,200,50,0.35), transparent 40%),
+              linear-gradient(180deg, #ffe066 0%, #fff8dc 45%, #ffe066 100%);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: manipulation;
+}
+
+/* Lock body scroll when timer fullscreen is active */
+html.timer-fullscreen-lock,
+body.timer-fullscreen-lock {
+  overflow: hidden !important;
+  position: fixed !important;
+  width: 100% !important;
+  height: 100% !important;
+  touch-action: none !important;
+}
+
+/* Hide the time-row in fullscreen mode - info is in the ring */
+.timer-shell.full-timer .time-row {
+  display: none;
+}
+
+/* Fullscreen immersive layout */
+.timer-shell.full-timer .immersive {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+  background: transparent;
+  border: none;
+  min-height: auto;
+}
+
+.timer-shell.full-timer .ring-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+}
+
+.timer-shell.full-timer .ring-wrap {
+  width: min(300px, 70vw);
+  max-width: 320px;
+}
+
+.timer-shell.full-timer .ring-time {
+  font-size: clamp(2.5rem, 12vw, 3.5rem);
+}
+
+.timer-shell.full-timer .timer-actions {
+  width: 100%;
+  display: flex;
+  gap: 0.5rem;
+  padding: 0 0.5rem;
+}
+
+.timer-shell.full-timer .timer-actions button {
+  flex: 1;
+  min-height: 50px;
+  font-size: 1rem;
+  border-radius: 14px;
+}
+
+.timer-shell.full-timer .up-next {
+  flex-shrink: 0;
+  max-height: 35vh;
+  overflow-y: auto;
+  margin: 0 0.5rem;
+  background: rgba(255,255,255,0.8);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.timer-shell.full-timer .next-list {
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.timer-shell.full-timer .secondary-actions {
+  padding-bottom: 0.5rem;
+}
+
+.timer-shell.full-timer .secondary-actions button {
+  min-height: 44px;
+}
+
+.timer-shell.full-timer .progress {
+  margin: 0 0.5rem;
+  flex-shrink: 0;
+}
+
+.timer-shell.full-timer .timer-config {
+  display: none;
+}
+
+.timer-shell.full-timer .mini-steps {
+  display: none;
+}
+
+/* Larger screens: side-by-side layout */
+@media (min-width: 700px) and (min-height: 500px) {
+  .timer-shell.full-timer .immersive {
+    flex-direction: row;
+    align-items: stretch;
+    padding: 1.5rem;
+  }
+  .timer-shell.full-timer .ring-card {
+    flex: 1.3;
+  }
+  .timer-shell.full-timer .up-next {
+    flex: 0.7;
+    max-width: 350px;
+    max-height: none;
+    margin: 0;
+  }
+  .timer-shell.full-timer .ring-wrap {
+    width: min(360px, 40vw);
+  }
 }
 
 .time-row {
