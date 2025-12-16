@@ -146,6 +146,14 @@
   gap: 0.7rem;
 }
 
+.timer-shell.full-timer {
+  background: linear-gradient(145deg, #fff4c7, #ffffff);
+  border: 1px solid #ead47e;
+  border-radius: 18px;
+  padding: 0.8rem;
+  box-shadow: 0 18px 60px rgba(240, 195, 63, 0.22);
+}
+
 .time-row {
   display: flex;
   justify-content: space-between;
@@ -209,6 +217,159 @@
 .controls {
   display: flex;
   gap: 0.7rem;
+  flex-wrap: wrap;
+}
+
+.immersive {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 1.2rem;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #e6dcb2;
+  border-radius: 16px;
+  padding: 1rem;
+}
+
+.immersive.active {
+  background: radial-gradient(circle at 15% 15%, rgba(248, 216, 76, 0.18), transparent 35%),
+    radial-gradient(circle at 80% 0%, rgba(255, 196, 0, 0.12), transparent 30%),
+    #ffffff;
+}
+
+.ring-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+}
+
+.ring-wrap {
+  position: relative;
+  width: min(420px, 90vw);
+  aspect-ratio: 1 / 1;
+  display: grid;
+  place-items: center;
+}
+
+.ring {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+}
+
+.ring-track {
+  fill: none;
+  stroke: #f0e6c4;
+  stroke-width: 16;
+  opacity: 0.8;
+}
+
+.ring-track.inner {
+  stroke-width: 12;
+  stroke: #f5eaca;
+}
+
+.ring-progress {
+  fill: none;
+  stroke-linecap: round;
+  stroke-width: 16;
+  stroke: #f6c500;
+  transition: stroke-dashoffset 200ms ease;
+}
+
+.ring-progress.inner {
+  stroke-width: 10;
+  stroke: #2fa8cc;
+  opacity: 0.9;
+}
+
+.ring-progress.outer {
+  stroke: #ffae00;
+}
+
+.ring-center {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.ring-time {
+  font-size: 3.8rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.ring-sub {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.ring-sub.muted {
+  color: #6b6151;
+  font-weight: 500;
+}
+
+.timer-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.up-next {
+  background: #fff9e8;
+  border: 1px dashed #f0c14d;
+  border-radius: 14px;
+  padding: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.up-next-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.small-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.65rem;
+  background: #fff2c0;
+  border-radius: 999px;
+  font-weight: 700;
+  color: #6e4d00;
+  border: 1px solid #f0c14d;
+}
+
+.next-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.next-item {
+  padding: 0.65rem 0.75rem;
+  background: #ffffff;
+  border-radius: 10px;
+  border: 1px solid #e6dcb2;
+}
+
+.next-item.empty {
+  color: #7f7259;
+  font-style: italic;
+}
+
+.next-name {
+  font-weight: 700;
+}
+
+.secondary-actions {
+  display: flex;
+  gap: 0.5rem;
   flex-wrap: wrap;
 }
 
@@ -455,6 +616,28 @@ button.tiny {
   align-items: center;
   gap: 0.5rem;
   color: #9cafc4;
+}
+
+@media (max-width: 900px) {
+  .immersive {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .timer-shell.full-timer {
+    margin: 0 -0.4rem;
+  }
+  .immersive {
+    padding: 1.1rem;
+    min-height: 68vh;
+  }
+  .ring-time {
+    font-size: 3.2rem;
+  }
+  .timer-actions button {
+    flex: 1;
+  }
 }
 
 .feature-grid {

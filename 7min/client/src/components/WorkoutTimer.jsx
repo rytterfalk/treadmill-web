@@ -29,6 +29,13 @@ function playTone(frequency = 720) {
   }
 }
 
+function formatSeconds(totalSeconds) {
+  const safe = Math.max(0, Math.round(totalSeconds));
+  const minutes = Math.floor(safe / 60);
+  const seconds = safe % 60;
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
 function WorkoutTimer({ program, exercises, onComplete, stats }) {
   const [rounds, setRounds] = useState(1);
   const [restBetweenExercises, setRestBetweenExercises] = useState(10);
@@ -303,11 +310,39 @@ function WorkoutTimer({ program, exercises, onComplete, stats }) {
       ? Math.min(100, Math.round(((currentStep.duration - remaining) / currentStep.duration) * 100))
       : 0;
 
-  const nextStep = schedule[stepIndex + 1];
+  const nextExercises = useMemo(
+    () => schedule.slice(stepIndex + 1).filter((s) => s.type === 'exercise'),
+    [schedule, stepIndex]
+  );
+  const nextExercise = nextExercises[0];
+  const nextExerciseAfter = nextExercises.slice(0, 3);
+  const previousExerciseIndex = useMemo(() => {
+    for (let i = stepIndex - 1; i >= 0; i -= 1) {
+      if (schedule[i]?.type === 'exercise') return i;
+    }
+    return null;
+  }, [schedule, stepIndex]);
+  const nextExerciseIndex = useMemo(() => {
+    for (let i = stepIndex + 1; i < schedule.length; i += 1) {
+      if (schedule[i]?.type === 'exercise') return i;
+    }
+    return null;
+  }, [schedule, stepIndex]);
   const totalMinutes = Math.max(1, Math.round(totalDuration / 60));
+  const totalRemaining = Math.max(0, totalDuration - elapsed);
+  const isActive = status === 'running' || status === 'countdown' || status === 'paused';
+
+  function jumpToExercise(targetIndex) {
+    if (targetIndex == null || !schedule[targetIndex]) return;
+    setStepIndex(targetIndex);
+    setRemaining(schedule[targetIndex].duration || 0);
+    if (status === 'idle' || status === 'done') {
+      setStatus('paused');
+    }
+  }
 
   return (
-    <div className="timer-shell">
+    <div className={`timer-shell ${isActive ? 'full-timer' : ''}`}>
       <div className="time-row">
         <div>
           <p className="eyebrow">Total tid</p>
@@ -325,13 +360,116 @@ function WorkoutTimer({ program, exercises, onComplete, stats }) {
         </div>
         <div className="next-block">
           <p className="eyebrow">Nästa</p>
-          <div className="next-title">{nextStep?.label || '---'}</div>
+          <div className="next-title">{nextExercise?.label || '---'}</div>
           <div className="next-meta">
-            {nextStep ? `${nextStep.duration}s` : 'Du är klar när timern når noll'}
+            {nextExercise ? `${nextExercise.duration}s` : 'Du är klar när timern når noll'}
           </div>
           <div className="next-meta">
             {stats?.moments ? `${stats.moments} moment` : '— moment'} •{' '}
             {stats?.totalSeconds ? `${Math.round(stats.totalSeconds / 60)} min` : '— min'}
+          </div>
+        </div>
+      </div>
+
+      <div className={`immersive ${isActive ? 'active' : ''}`}>
+        <div className="ring-card">
+          <div className="ring-wrap">
+            <svg className="ring" viewBox="0 0 240 240">
+              <circle className="ring-track" cx="120" cy="120" r="108" />
+              <circle
+                className="ring-progress outer"
+                cx="120"
+                cy="120"
+                r="108"
+                style={{
+                  strokeDasharray: `${2 * Math.PI * 108}px`,
+                  strokeDashoffset: `${2 * Math.PI * 108 * (1 - stepProgress / 100)}px`,
+                }}
+              />
+              <circle className="ring-track inner" cx="120" cy="120" r="88" />
+              <circle
+                className="ring-progress inner"
+                cx="120"
+                cy="120"
+                r="88"
+                style={{
+                  strokeDasharray: `${2 * Math.PI * 88}px`,
+                  strokeDashoffset: `${2 * Math.PI * 88 * (1 - percent / 100)}px`,
+                }}
+              />
+            </svg>
+            <div className="ring-center">
+              <p className="eyebrow">{currentStep?.type === 'rest' ? 'Vila' : 'Nu kör vi'}</p>
+              <div className="ring-time">
+                {status === 'countdown' ? `${countdown}` : formatSeconds(remaining || 0)}
+              </div>
+              <div className="ring-sub">
+                {status === 'countdown'
+                  ? `${currentStep?.label || ''}`
+                  : `${currentStep?.label || ''} • ${currentStep?.duration || 0}s`}
+              </div>
+              <div className="ring-sub muted">Totalt kvar {formatSeconds(totalRemaining)}</div>
+            </div>
+          </div>
+
+          <div className="timer-actions">
+            <button
+              className="ghost"
+              onClick={() => jumpToExercise(previousExerciseIndex)}
+              disabled={previousExerciseIndex == null}
+            >
+              ← Föregående
+            </button>
+            {status !== 'running' && status !== 'countdown' ? (
+              <button onClick={start}>Starta</button>
+            ) : (
+              <button className="ghost" onClick={pause}>
+                Pausa
+              </button>
+            )}
+            <button
+              className="ghost"
+              onClick={() => jumpToExercise(nextExerciseIndex)}
+              disabled={nextExerciseIndex == null}
+            >
+              Nästa →
+            </button>
+          </div>
+        </div>
+
+        <div className="up-next">
+          <div className="up-next-header">
+            <p className="eyebrow">Kommande övningar</p>
+            <span className="small-chip">
+              {nextExercises.length ? `${nextExercises.length} kvar` : 'Inget mer'}
+            </span>
+          </div>
+          <div className="next-list">
+            {nextExerciseAfter.length ? (
+              nextExerciseAfter.map((step, idx) => (
+                <div className="next-item" key={`${step.label}-${idx}`}>
+                  <div className="next-name">{step.label}</div>
+                  <div className="next-meta">
+                    {step.duration}s • Varv {step.round}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="next-item empty">Inga fler övningar</div>
+            )}
+          </div>
+          <div className="secondary-actions">
+            <button className="ghost" onClick={reset}>
+              Nollställ
+            </button>
+            <button className="ghost" onClick={() => setShowSteps((v) => !v)}>
+              {showSteps ? 'Dölj moment' : 'Visa moment'}
+            </button>
+            {(status === 'running' || status === 'countdown' || status === 'paused') && (
+              <button className="ghost danger" onClick={abortAndSave}>
+                Avbryt och spara
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -350,27 +488,6 @@ function WorkoutTimer({ program, exercises, onComplete, stats }) {
           </div>
         </>
       )}
-
-      <div className="controls">
-        {status !== 'running' && status !== 'countdown' && <button onClick={start}>Starta</button>}
-        {status === 'countdown' && <button className="ghost" onClick={pause}>Stoppa nedräkning</button>}
-        {status === 'running' && (
-          <button className="ghost" onClick={pause}>
-            Pausa
-          </button>
-        )}
-        <button className="ghost" onClick={reset}>
-          Nollställ
-        </button>
-        <button className="ghost" onClick={() => setShowSteps((v) => !v)}>
-          {showSteps ? 'Dölj moment' : 'Visa moment'}
-        </button>
-        {(status === 'running' || status === 'countdown' || status === 'paused') && (
-          <button className="ghost danger" onClick={abortAndSave}>
-            Avbryt och spara
-          </button>
-        )}
-      </div>
 
       <div className="inline compact timer-config">
         <label>
