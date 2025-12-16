@@ -112,7 +112,15 @@ function WorkoutTimer({ program, exercises, onComplete, stats }) {
   useEffect(() => {
     const step = schedule[stepIndex];
     if (status !== 'running') return;
-    if (step?.type === 'exercise' && step.audioUrl && lastAudioPlayedRef.current !== stepIndex) {
+    const prev = schedule[stepIndex - 1];
+    const previousWasRest = prev?.type === 'rest';
+    // Spela paus-meddelande precis när vi går från vila till nytt moment.
+    if (
+      previousWasRest &&
+      step?.type === 'exercise' &&
+      step.audioUrl &&
+      lastAudioPlayedRef.current !== stepIndex
+    ) {
       try {
         const player = voicePlayerRef.current || new Audio();
         player.src = step.audioUrl;
