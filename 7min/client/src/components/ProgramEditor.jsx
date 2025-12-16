@@ -135,16 +135,16 @@ function ProgramEditor({ prefill, onSave }) {
     onSave({
       title,
       description,
-      rounds: 1,
-      isPublic,
-      exercises: exercises.map((ex) => ({
-        title: ex.title,
-        durationSeconds: ex.durationSeconds,
-        restSeconds: 10,
-        notes: ex.notes,
-        audioAssetId: ex.audioAssetId || null,
-        halfAudioAssetId: ex.halfAudioAssetId || null,
-      })),
+        rounds: 1,
+        isPublic,
+        exercises: exercises.map((ex) => ({
+          title: ex.title,
+          durationSeconds: ex.durationSeconds || 30,
+          restSeconds: 10,
+          notes: ex.notes,
+          audioAssetId: ex.audioAssetId || null,
+          halfAudioAssetId: ex.halfAudioAssetId || null,
+        })),
     });
   }
 
@@ -316,20 +316,7 @@ function ProgramEditor({ prefill, onSave }) {
                   onChange={(e) => updateExercise(idx, 'title', e.target.value)}
                   placeholder="Övning"
                 />
-                <div className="inline compact">
-                  <label>
-                    Tid (s)
-                    <input
-                      type="number"
-                      value={ex.durationSeconds}
-                      onChange={(e) => updateExercise(idx, 'durationSeconds', Number(e.target.value))}
-                    />
-                  </label>
-                  <label>
-                    Vila (s)
-                    <input type="number" value={10} disabled />
-                  </label>
-                </div>
+                <p className="muted">Tid och vila sätts vid start (default 30s/10s).</p>
                 <input
                   value={ex.notes}
                   onChange={(e) => updateExercise(idx, 'notes', e.target.value)}
@@ -393,12 +380,14 @@ function ProgramEditor({ prefill, onSave }) {
                     {ex.audioUrl && (
                       <audio
                         controls
-                        src={ex.audioUrl}
+                        src={`${ex.audioUrl}?v=${Date.now()}`}
                         className="audio-player"
                         onError={() =>
                           setStatus('Kunde inte spela upp ljudet. Prova spela in igen.')
                         }
                         onLoadedData={() => setStatus('')}
+                        preload="auto"
+                        type="audio/webm"
                       >
                         Din browser stöder inte uppspelning.
                       </audio>
@@ -429,12 +418,14 @@ function ProgramEditor({ prefill, onSave }) {
                     {ex.halfAudioUrl && (
                       <audio
                         controls
-                        src={ex.halfAudioUrl}
+                        src={`${ex.halfAudioUrl}?v=${Date.now()}`}
                         className="audio-player"
                         onError={() =>
                           setStatus('Kunde inte spela upp halvtidsljudet. Prova spela in igen.')
                         }
                         onLoadedData={() => setStatus('')}
+                        preload="auto"
+                        type="audio/webm"
                       >
                         Din browser stöder inte uppspelning.
                       </audio>
