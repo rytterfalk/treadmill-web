@@ -267,13 +267,23 @@ function App() {
   async function handleSessionComplete(payload) {
     if (!user) return;
     try {
+      const status = payload.status || 'completed';
+      const elapsedSeconds = payload.elapsedSeconds ?? payload.durationSeconds ?? null;
+      const percentComplete =
+        payload.percentComplete ??
+        (status === 'completed' && payload.durationSeconds ? 100 : null);
+
       await api('/api/sessions', {
         method: 'POST',
         body: JSON.stringify({
           programId: selectedProgramId,
-          durationSeconds: payload.durationSeconds,
+          durationSeconds: elapsedSeconds,
           notes: payload.notes || '',
-          details: payload.details || null,
+          details: {
+            ...(payload.details || {}),
+            status,
+            percentComplete,
+          },
           sessionType: 'hiit',
           startedAt: payload.startedAt || null,
         }),

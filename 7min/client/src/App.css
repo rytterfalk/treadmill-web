@@ -561,6 +561,10 @@ button.tiny {
   font-weight: 600;
 }
 
+.timer-config input {
+  max-width: 120px;
+}
+
 .weekbars {
   display: flex;
   align-items: flex-end;

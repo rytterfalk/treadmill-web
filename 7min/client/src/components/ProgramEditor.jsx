@@ -45,7 +45,7 @@ function ProgramEditor({ prefill, onSave }) {
     if (!prefill) return;
     setTitle(`${prefill.program?.title || 'Nytt pass'} (kopia)`);
     setDescription(prefill.program?.description || '');
-    setRounds(prefill.program?.rounds || 1);
+    setRounds(1);
     setIsPublic(!!prefill.program?.is_public);
     setExercises(
       prefill.exercises?.length
@@ -135,12 +135,12 @@ function ProgramEditor({ prefill, onSave }) {
     onSave({
       title,
       description,
-      rounds: Number(rounds) || 1,
+      rounds: 1,
       isPublic,
       exercises: exercises.map((ex) => ({
         title: ex.title,
         durationSeconds: ex.durationSeconds,
-        restSeconds: ex.restSeconds,
+        restSeconds: 10,
         notes: ex.notes,
         audioAssetId: ex.audioAssetId || null,
         halfAudioAssetId: ex.halfAudioAssetId || null,
@@ -273,25 +273,14 @@ function ProgramEditor({ prefill, onSave }) {
             placeholder="Hur ska passet kännas? Vad är målet?"
           />
         </label>
-        <div className="inline">
-          <label>
-            Varv
-            <input
-              type="number"
-              min="1"
-              value={rounds}
-              onChange={(e) => setRounds(Number(e.target.value))}
-            />
-          </label>
-          <label className="checkbox">
-            <input
-              type="checkbox"
-              checked={isPublic}
-              onChange={(e) => setIsPublic(e.target.checked)}
-            />
-            Visa för alla
-          </label>
-        </div>
+        <label className="checkbox">
+          <input
+            type="checkbox"
+            checked={isPublic}
+            onChange={(e) => setIsPublic(e.target.checked)}
+          />
+          Visa för alla
+        </label>
 
         <div className="exercise-list">
           {exercises.map((ex, idx) => (
@@ -313,7 +302,7 @@ function ProgramEditor({ prefill, onSave }) {
                   onChange={(e) => updateExercise(idx, 'title', e.target.value)}
                   placeholder="Övning"
                 />
-                <div className="inline">
+                <div className="inline compact">
                   <label>
                     Tid (s)
                     <input
@@ -324,11 +313,7 @@ function ProgramEditor({ prefill, onSave }) {
                   </label>
                   <label>
                     Vila (s)
-                    <input
-                      type="number"
-                      value={ex.restSeconds}
-                      onChange={(e) => updateExercise(idx, 'restSeconds', Number(e.target.value))}
-                    />
+                    <input type="number" value={10} disabled />
                   </label>
                 </div>
                 <input

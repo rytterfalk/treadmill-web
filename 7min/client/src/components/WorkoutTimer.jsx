@@ -30,47 +30,52 @@ function playTone(frequency = 720) {
 }
 
 function WorkoutTimer({ program, exercises, onComplete, stats }) {
-  const rounds = Math.max(program?.rounds || 1, 1);
+  const [rounds, setRounds] = useState(1);
+  const [restBetweenExercises, setRestBetweenExercises] = useState(10);
+  const [restBetweenRounds, setRestBetweenRounds] = useState(40);
   const voicePlayerRef = useRef(null);
   const [showSteps, setShowSteps] = useState(false);
 
   const schedule = useMemo(() => {
     if (!exercises?.length) return [];
     const seq = [];
-    for (let round = 0; round < rounds; round += 1) {
+    const rbe = Math.max(0, Number(restBetweenExercises) || 0);
+    const rbr = Math.max(0, Number(restBetweenRounds) || 0);
+    const runRounds = Math.max(1, Number(rounds) || 1);
+    for (let round = 0; round < runRounds; round += 1) {
       exercises.forEach((ex, idx) => {
         seq.push({
           type: 'exercise',
           label: ex.title || `Moment ${idx + 1}`,
           duration: Number(ex.durationSeconds) || 30,
-          rest: Number(ex.restSeconds) || 0,
+          rest: rbe,
           round: round + 1,
           notes: ex.notes || '',
           audioUrl: ex.audioUrl || null,
           halfAudioUrl: ex.halfAudioUrl || null,
         });
-        if (Number(ex.restSeconds) > 0) {
+        if (rbe > 0) {
           seq.push({
             type: 'rest',
             label: 'Vila',
-            duration: Number(ex.restSeconds) || 0,
+            duration: rbe,
             round: round + 1,
             notes: '',
           });
         }
       });
-      if (round < rounds - 1) {
+      if (round < runRounds - 1 && rbr > 0) {
         seq.push({
           type: 'rest',
           label: 'Vila mellan varv',
-          duration: 20,
+          duration: rbr,
           round: round + 1,
           notes: '',
         });
       }
     }
     return seq;
-  }, [exercises, rounds]);
+  }, [exercises, rounds, restBetweenExercises, restBetweenRounds]);
 
   const scheduleKey = useMemo(
     () =>
@@ -100,6 +105,9 @@ function WorkoutTimer({ program, exercises, onComplete, stats }) {
     setStatus('idle');
     setElapsed(0);
     setCountdown(3);
+    setRounds(1);
+    setRestBetweenExercises(10);
+    setRestBetweenRounds(40);
   }, [scheduleKey]);
 
   useEffect(() => {
@@ -211,6 +219,8 @@ function WorkoutTimer({ program, exercises, onComplete, stats }) {
             onComplete?.({
               durationSeconds: totalDuration,
               details: { programTitle: program?.title },
+              status: 'completed',
+              percentComplete: 100,
             });
             return 0;
           }
@@ -256,6 +266,31 @@ function WorkoutTimer({ program, exercises, onComplete, stats }) {
     setRemaining(schedule[0]?.duration || 0);
     setElapsed(0);
     setCountdown(3);
+    setRounds(1);
+    setRestBetweenExercises(10);
+    setRestBetweenRounds(40);
+  }
+
+  function abortAndSave() {
+    if (!schedule.length || status === 'idle') return;
+    const elapsedSeconds = elapsed;
+    const percentComplete =
+      totalDuration > 0 ? Math.min(100, Math.round((elapsedSeconds / totalDuration) * 100)) : 0;
+    setStatus('idle');
+    setStepIndex(0);
+    setRemaining(schedule[0]?.duration || 0);
+    setElapsed(0);
+    setCountdown(3);
+    setRounds(1);
+    setRestBetweenExercises(10);
+    setRestBetweenRounds(40);
+    onComplete?.({
+      status: 'aborted',
+      durationSeconds: elapsedSeconds,
+      elapsedSeconds,
+      percentComplete,
+      details: { programTitle: program?.title },
+    });
   }
 
   const percent =
@@ -266,10 +301,7 @@ function WorkoutTimer({ program, exercises, onComplete, stats }) {
       : 0;
 
   const nextStep = schedule[stepIndex + 1];
-  const totalMinutes =
-    stats?.totalSeconds && !Number.isNaN(Number(stats.totalSeconds))
-      ? Math.max(1, Math.round(stats.totalSeconds / 60))
-      : Math.max(1, Math.round(totalDuration / 60));
+  const totalMinutes = Math.max(1, Math.round(totalDuration / 60));
 
   return (
     <div className="timer-shell">
@@ -330,6 +362,41 @@ function WorkoutTimer({ program, exercises, onComplete, stats }) {
         <button className="ghost" onClick={() => setShowSteps((v) => !v)}>
           {showSteps ? 'Dölj moment' : 'Visa moment'}
         </button>
+        {(status === 'running' || status === 'countdown' || status === 'paused') && (
+          <button className="ghost danger" onClick={abortAndSave}>
+            Avbryt och spara
+          </button>
+        )}
+      </div>
+
+      <div className="inline compact timer-config">
+        <label>
+          Varv
+          <input
+            type="number"
+            min="1"
+            value={rounds}
+            onChange={(e) => setRounds(Math.max(1, Number(e.target.value) || 1))}
+          />
+        </label>
+        <label>
+          Vila per moment (s)
+          <input
+            type="number"
+            min="0"
+            value={restBetweenExercises}
+            onChange={(e) => setRestBetweenExercises(Math.max(0, Number(e.target.value) || 0))}
+          />
+        </label>
+        <label>
+          Vila mellan varv (s)
+          <input
+            type="number"
+            min="0"
+            value={restBetweenRounds}
+            onChange={(e) => setRestBetweenRounds(Math.max(0, Number(e.target.value) || 0))}
+          />
+        </label>
       </div>
 
       {showSteps && (
