@@ -36,7 +36,7 @@ function formatSeconds(totalSeconds) {
   return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
-function WorkoutTimer({ program, exercises, onComplete, stats }) {
+function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }) {
   const [rounds, setRounds] = useState(1);
   const [restBetweenExercises, setRestBetweenExercises] = useState(10);
   const [restBetweenRounds, setRestBetweenRounds] = useState(40);
@@ -375,6 +375,12 @@ function WorkoutTimer({ program, exercises, onComplete, stats }) {
         <div className="ring-card">
           <div className="ring-wrap">
             <svg className="ring" viewBox="0 0 240 240">
+              <defs>
+                <linearGradient id="outerRingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#ffb200" />
+                  <stop offset="100%" stopColor="#ff8800" />
+                </linearGradient>
+              </defs>
               <circle className="ring-track" cx="120" cy="120" r="108" />
               <circle
                 className="ring-progress outer"
@@ -462,9 +468,11 @@ function WorkoutTimer({ program, exercises, onComplete, stats }) {
             <button className="ghost" onClick={reset}>
               Nollställ
             </button>
-            <button className="ghost" onClick={() => setShowSteps((v) => !v)}>
-              {showSteps ? 'Dölj moment' : 'Visa moment'}
-            </button>
+            {!compact && (
+              <button className="ghost" onClick={() => setShowSteps((v) => !v)}>
+                {showSteps ? 'Dölj moment' : 'Visa moment'}
+              </button>
+            )}
             {(status === 'running' || status === 'countdown' || status === 'paused') && (
               <button className="ghost danger" onClick={abortAndSave}>
                 Avbryt och spara
@@ -489,61 +497,63 @@ function WorkoutTimer({ program, exercises, onComplete, stats }) {
         </>
       )}
 
-      <div className="inline compact timer-config">
-        <label>
-          Varv
-          <input
-            type="number"
-            min="1"
-            value={rounds}
-            onChange={(e) => {
-              const val = e.target.value;
-              if (val === '') {
-                setRounds('');
-                return;
-              }
-              const num = Number(val);
-              setRounds(Math.max(1, Number.isNaN(num) ? 1 : num));
-            }}
-          />
-        </label>
-        <label>
-          Vila per moment (s)
-          <input
-            type="number"
-            min="0"
-            value={restBetweenExercises}
-            onChange={(e) => {
-              const val = e.target.value;
-              if (val === '') {
-                setRestBetweenExercises('');
-                return;
-              }
-              const num = Number(val);
-              setRestBetweenExercises(Math.max(0, Number.isNaN(num) ? 0 : num));
-            }}
-          />
-        </label>
-        <label>
-          Vila mellan varv (s)
-          <input
-            type="number"
-            min="0"
-            value={restBetweenRounds}
-            onChange={(e) => {
-              const val = e.target.value;
-              if (val === '') {
-                setRestBetweenRounds('');
-                return;
-              }
-              const num = Number(val);
-              setRestBetweenRounds(Math.max(0, Number.isNaN(num) ? 0 : num));
-            }}
-          />
-        </label>
-      </div>
+      {!compact && (
+        <div className="inline compact timer-config">
+          <label>
+            Varv
+            <input
+              type="number"
+              min="1"
+              value={rounds}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '') {
+                  setRounds('');
+                  return;
+                }
+                const num = Number(val);
+                setRounds(Math.max(1, Number.isNaN(num) ? 1 : num));
+              }}
+            />
+          </label>
+          <label>
+            Vila per moment (s)
+            <input
+              type="number"
+              min="0"
+              value={restBetweenExercises}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '') {
+                  setRestBetweenExercises('');
+                  return;
+                }
+                const num = Number(val);
+                setRestBetweenExercises(Math.max(0, Number.isNaN(num) ? 0 : num));
+              }}
+            />
+          </label>
+          <label>
+            Vila mellan varv (s)
+            <input
+              type="number"
+              min="0"
+              value={restBetweenRounds}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '') {
+                  setRestBetweenRounds('');
+                  return;
+                }
+                const num = Number(val);
+                setRestBetweenRounds(Math.max(0, Number.isNaN(num) ? 0 : num));
+              }}
+            />
+          </label>
+        </div>
+      )}
 
-      {showSteps && (
+      {!compact && showSteps && (
         <div className="mini-steps">
           {schedule
             .map((step, idx) => ({ step, idx }))

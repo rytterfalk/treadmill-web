@@ -4,6 +4,7 @@ import './App.css';
 import NavBar from './components/NavBar';
 import ProgramEditor from './components/ProgramEditor';
 import WorkoutTimer from './components/WorkoutTimer';
+import WorkoutScreen from './components/WorkoutScreen';
 import EquipmentSelector from './components/EquipmentSelector';
 import SessionList from './components/SessionList';
 import WeekBars from './components/WeekBars';
@@ -32,6 +33,15 @@ async function api(path, options = {}) {
 }
 
 function App() {
+  const workoutMatch = useMemo(() => {
+    const path = window.location.pathname;
+    const match = path.match(/^\/(workout|play)\/([^/]+)/);
+    return match ? match[2] : null;
+  }, []);
+  if (workoutMatch) {
+    return <WorkoutScreen programId={workoutMatch} />;
+  }
+
   const [user, setUser] = useState(null);
   const [allEquipment, setAllEquipment] = useState([]);
   const [userEquipment, setUserEquipment] = useState([]);
