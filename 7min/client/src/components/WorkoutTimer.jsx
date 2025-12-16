@@ -96,6 +96,7 @@ function WorkoutTimer({ program, exercises, onComplete, stats }) {
   const [elapsed, setElapsed] = useState(0);
   const [countdown, setCountdown] = useState(3);
   const wakeLockRef = useRef(null);
+  const lastAudioPlayedRef = useRef(null);
 
   const currentStep = schedule[stepIndex];
 
@@ -105,25 +106,25 @@ function WorkoutTimer({ program, exercises, onComplete, stats }) {
     setStatus('idle');
     setElapsed(0);
     setCountdown(3);
+    lastAudioPlayedRef.current = null;
   }, [scheduleKey]);
 
   useEffect(() => {
     const step = schedule[stepIndex];
-    if (step?.type === 'rest') {
-      const next = schedule[stepIndex + 1];
-      if (next?.type === 'exercise' && next.audioUrl) {
-        try {
-          const player = voicePlayerRef.current || new Audio();
-          player.src = next.audioUrl;
-          player.currentTime = 0;
-          voicePlayerRef.current = player;
-          player.play().catch(() => {});
-        } catch (err) {
-          // ignore playback errors
-        }
+    if (status !== 'running') return;
+    if (step?.type === 'exercise' && step.audioUrl && lastAudioPlayedRef.current !== stepIndex) {
+      try {
+        const player = voicePlayerRef.current || new Audio();
+        player.src = step.audioUrl;
+        player.currentTime = 0;
+        voicePlayerRef.current = player;
+        player.play().catch(() => {});
+        lastAudioPlayedRef.current = stepIndex;
+      } catch (err) {
+        // ignore playback errors
       }
     }
-  }, [stepIndex, schedule]);
+  }, [stepIndex, schedule, status]);
 
   // Keep screen awake (best-effort) while timern kör
   useEffect(() => {

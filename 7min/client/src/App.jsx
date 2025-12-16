@@ -526,7 +526,7 @@ function App() {
                   >
                     ✏️ Editera
                   </button>
-                  {program.user_id && (
+                  {(program.user_id === null && !program.is_public) || program.user_id ? (
                     <button
                       type="button"
                       className="ghost tiny danger"
@@ -539,7 +539,7 @@ function App() {
                     >
                       🗑 Ta bort
                     </button>
-                  )}
+                  ) : null}
                 </div>
               </button>
             ))}

@@ -243,8 +243,12 @@ app.delete('/api/programs/:id', authRequired, (req, res) => {
     .prepare('SELECT id, user_id, is_public FROM programs WHERE id = ?')
     .get(req.params.id);
   if (!program) return res.status(404).json({ error: 'Programmet finns inte' });
-  if (!program.user_id || program.user_id !== req.user.id) {
-    return res.status(403).json({ error: 'Du kan bara ta bort dina egna pass' });
+  const isOwner = program.user_id && program.user_id === req.user.id;
+  const isUnowned = program.user_id === null;
+  const isPublic = !!program.is_public;
+  // Tillåt ta bort egna pass, samt oägda pass som inte är publika (gamla lokala kopior).
+  if (!isOwner && !(isUnowned && !isPublic)) {
+    return res.status(403).json({ error: 'Du kan bara ta bort dina egna (eller oägda) pass' });
   }
   db.prepare('DELETE FROM programs WHERE id = ?').run(program.id);
   res.json({ ok: true, deletedId: program.id });
