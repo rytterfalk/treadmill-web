@@ -202,12 +202,26 @@ function ProgramEditor({ prefill, onSave }) {
     }
   }
 
+  function guessExtension(mime) {
+    if (!mime) return '.webm';
+    const t = mime.toLowerCase();
+    if (t.includes('mp4') || t.includes('aac')) return '.m4a';
+    if (t.includes('ogg')) return '.ogg';
+    if (t.includes('wav')) return '.wav';
+    return '.webm';
+  }
+
   async function uploadAudio(index, blob, { half = false } = {}) {
     if (!blob.size) return;
     setExercisePatch(index, { uploadingAudio: true });
     try {
+      const mime = blob.type || 'audio/webm';
+      const ext = guessExtension(mime);
+      const fileName = half ? `halftime${ext}` : `pause${ext}`;
+      const file = new File([blob], fileName, { type: mime });
+
       const form = new FormData();
-      form.append('file', blob, 'pause.webm');
+      form.append('file', file, fileName);
       form.append('type', 'audio');
       const res = await fetch('/api/media', {
         method: 'POST',
@@ -377,7 +391,15 @@ function ProgramEditor({ prefill, onSave }) {
                       )}
                     </div>
                     {ex.audioUrl && (
-                      <audio controls src={ex.audioUrl} className="audio-player">
+                      <audio
+                        controls
+                        src={ex.audioUrl}
+                        className="audio-player"
+                        onError={() =>
+                          setStatus('Kunde inte spela upp ljudet. Prova spela in igen.')
+                        }
+                        onLoadedData={() => setStatus('')}
+                      >
                         Din browser stöder inte uppspelning.
                       </audio>
                     )}
@@ -405,7 +427,15 @@ function ProgramEditor({ prefill, onSave }) {
                       )}
                     </div>
                     {ex.halfAudioUrl && (
-                      <audio controls src={ex.halfAudioUrl} className="audio-player">
+                      <audio
+                        controls
+                        src={ex.halfAudioUrl}
+                        className="audio-player"
+                        onError={() =>
+                          setStatus('Kunde inte spela upp halvtidsljudet. Prova spela in igen.')
+                        }
+                        onLoadedData={() => setStatus('')}
+                      >
                         Din browser stöder inte uppspelning.
                       </audio>
                     )}
