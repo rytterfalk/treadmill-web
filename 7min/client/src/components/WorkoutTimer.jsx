@@ -301,16 +301,20 @@ function WorkoutTimer({ program, exercises, onComplete, stats }) {
         </div>
       </div>
 
-      <div className="progress">
-        <div className="progress-bar" style={{ width: `${percent}%` }} />
-        <div className="progress-label">Total progress {percent}%</div>
-      </div>
-      <div className="progress secondary">
-        <div className="progress-bar" style={{ width: `${stepProgress}%` }} />
-        <div className="progress-label">
-          Moment {stepIndex + 1} av {schedule.length}
-        </div>
-      </div>
+      {status !== 'idle' && (
+        <>
+          <div className="progress">
+            <div className="progress-bar" style={{ width: `${percent}%` }} />
+            <div className="progress-label">Total progress {percent}%</div>
+          </div>
+          <div className="progress secondary">
+            <div className="progress-bar" style={{ width: `${stepProgress}%` }} />
+            <div className="progress-label">
+              Moment {stepIndex + 1} av {schedule.length}
+            </div>
+          </div>
+        </>
+      )}
 
       <div className="controls">
         {status !== 'running' && status !== 'countdown' && <button onClick={start}>Starta</button>}
