@@ -719,26 +719,37 @@ function App() {
           )}
         </section>
 
-        {recentSessions.length > 0 && (
-          <section className="panel recent-session-panel">
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">Senaste passet</p>
-                <h3>{recentSessions[0]?.program_title || 'Eget pass'}</h3>
+        {(() => {
+          const today = new Date().toISOString().slice(0, 10);
+          const todaySessions = recentSessions.filter(
+            (s) => s.completed_at && s.completed_at.slice(0, 10) === today
+          );
+          if (todaySessions.length === 0) return null;
+          return (
+            <section className="panel today-sessions-panel">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Idag</p>
+                  <h3>Genomförda pass</h3>
+                </div>
+                <span className="badge">{todaySessions.length} pass</span>
               </div>
-              <span className="badge">{formatDuration(recentSessions[0]?.duration_seconds)}</span>
-            </div>
-            <p className="session-time">
-              {new Date(recentSessions[0]?.completed_at).toLocaleString('sv-SE', {
-                weekday: 'long',
-                day: 'numeric',
-                month: 'short',
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </p>
-          </section>
-        )}
+              <div className="today-sessions-list">
+                {todaySessions.map((session) => (
+                  <div key={session.id} className="today-session-item">
+                    <div className="session-info">
+                      <span className="session-title">{session.program_title || 'Eget pass'}</span>
+                      <span className="session-duration">{formatDuration(session.duration_seconds)}</span>
+                    </div>
+                    <span className="session-time-small">
+                      {new Date(session.completed_at).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          );
+        })()}
       </div>
     </div>
   );

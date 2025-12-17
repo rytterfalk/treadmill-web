@@ -5,6 +5,7 @@ const starterExercises = [
     title: 'Knäböj',
     durationSeconds: 30,
     restSeconds: 10,
+    timePercent: 100,
     notes: '',
     audioAssetId: null,
     audioUrl: null,
@@ -15,12 +16,21 @@ const starterExercises = [
     title: 'Armhävningar',
     durationSeconds: 30,
     restSeconds: 10,
+    timePercent: 100,
     notes: '',
     audioAssetId: null,
     audioUrl: null,
     halfAudioAssetId: null,
     halfAudioUrl: null,
   },
+];
+
+const TIME_PERCENT_OPTIONS = [
+  { value: 50, label: '50%' },
+  { value: 75, label: '75%' },
+  { value: 100, label: '100%' },
+  { value: 150, label: '150%' },
+  { value: 200, label: '200%' },
 ];
 
 function ProgramEditor({ prefill, onSave }) {
@@ -53,6 +63,7 @@ function ProgramEditor({ prefill, onSave }) {
             title: ex.title,
             durationSeconds: ex.durationSeconds,
             restSeconds: ex.restSeconds,
+            timePercent: ex.timePercent || 100,
             notes: ex.notes || '',
             audioAssetId: ex.audioAssetId || null,
             audioUrl: ex.audioUrl || null,
@@ -80,6 +91,7 @@ function ProgramEditor({ prefill, onSave }) {
         title: 'Nytt moment',
         durationSeconds: 30,
         restSeconds: 10,
+        timePercent: 100,
         notes: '',
         audioAssetId: null,
         audioUrl: null,
@@ -135,16 +147,17 @@ function ProgramEditor({ prefill, onSave }) {
     onSave({
       title,
       description,
-        rounds: 1,
-        isPublic,
-        exercises: exercises.map((ex) => ({
-          title: ex.title,
-          durationSeconds: ex.durationSeconds || 30,
-          restSeconds: 10,
-          notes: ex.notes,
-          audioAssetId: ex.audioAssetId || null,
-          halfAudioAssetId: ex.halfAudioAssetId || null,
-        })),
+      rounds: 1,
+      isPublic,
+      exercises: exercises.map((ex) => ({
+        title: ex.title,
+        durationSeconds: Math.round((ex.durationSeconds || 30) * ((ex.timePercent || 100) / 100)),
+        restSeconds: 10,
+        timePercent: ex.timePercent || 100,
+        notes: ex.notes,
+        audioAssetId: ex.audioAssetId || null,
+        halfAudioAssetId: ex.halfAudioAssetId || null,
+      })),
     });
   }
 
@@ -287,184 +300,149 @@ function ProgramEditor({ prefill, onSave }) {
   useEffect(() => () => stopStream(), []);
 
   return (
-    <div>
-      <div className="panel-header">
-        <div>
-          <p className="eyebrow">Bygg</p>
-          <h2>Skapa ett upplägg</h2>
-        </div>
+    <div className="program-editor">
+      <div className="editor-header">
+        <h2>{prefill ? 'Redigera pass' : 'Skapa nytt pass'}</h2>
       </div>
-      <form className="editor" onSubmit={handleSubmit}>
-        <label>
-          Titel
-          <input value={title} onChange={(e) => setTitle(e.target.value)} required />
-        </label>
-        <label>
-          Beskrivning
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={2}
-            placeholder="Hur ska passet kännas? Vad är målet?"
-          />
-        </label>
-        <label className="checkbox">
-          <input
-            type="checkbox"
-            checked={isPublic}
-            onChange={(e) => setIsPublic(e.target.checked)}
-          />
-          Visa för alla
-        </label>
 
-        <div className="exercise-list">
-          {exercises.map((ex, idx) => (
-            <div
-              className={`exercise-row ${draggingIdx === idx ? 'dragging' : ''}`}
-              key={idx}
-              draggable
-              onDragStart={() => handleDragStart(idx)}
-              onDragOver={(e) => {
-                e.preventDefault();
-                handleDragOver(idx);
-              }}
-              onDragEnd={handleDragEnd}
-            >
-              <div className="index">{idx + 1}</div>
-              <div className="fields">
-                <input
-                  value={ex.title}
-                  onChange={(e) => updateExercise(idx, 'title', e.target.value)}
-                  placeholder="Övning"
-                />
-                <p className="muted">Tid och vila sätts vid start (default 30s/10s).</p>
-                <input
-                  value={ex.notes}
-                  onChange={(e) => updateExercise(idx, 'notes', e.target.value)}
-                  placeholder="Tips / notes"
-                />
-                <div className="order-controls">
-                  <label className="inline compact order-label">
-                    Ordning
-                    <select
-                      className="order-input"
-                      value={idx + 1}
-                      onChange={(e) => handleOrderInput(idx, Number(e.target.value))}
-                    >
-                      {exercises.map((_, orderIdx) => (
-                        <option key={orderIdx} value={orderIdx + 1}>
-                          {orderIdx + 1}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <div className="order-buttons">
-                    <button
-                      type="button"
-                      className="ghost tiny"
-                      disabled={idx === 0}
-                      onClick={() => moveExercise(idx, idx - 1)}
-                    >
-                      Upp
-                    </button>
-                    <button
-                      type="button"
-                      className="ghost tiny"
-                      disabled={idx === exercises.length - 1}
-                      onClick={() => moveExercise(idx, idx + 1)}
+      <form className="editor-form" onSubmit={handleSubmit}>
+        {/* Program Settings */}
+        <div className="editor-section">
+          <div className="editor-row">
+            <label className="editor-field">
+              <span className="field-label">Titel</span>
+              <input value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="Ge ditt pass ett namn" />
+            </label>
+          </div>
+
+          <div className="editor-row">
+            <label className="editor-field">
+              <span className="field-label">Beskrivning</span>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={2}
+                placeholder="Beskriv passet kort..."
+              />
+            </label>
+          </div>
+
+          <div className="editor-row checkbox-row">
+            <label className="editor-checkbox">
+              <input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} />
+              <span>Dela med andra</span>
+            </label>
+          </div>
+        </div>
+
+        {/* Exercises */}
+        <div className="editor-section">
+          <div className="section-header">
+            <h3>Övningar</h3>
+            <span className="exercise-count">{exercises.length} moment</span>
+          </div>
+
+          <div className="exercise-list-editor">
+            {exercises.map((ex, idx) => (
+              <div
+                className={`exercise-card ${draggingIdx === idx ? 'dragging' : ''}`}
+                key={idx}
+                draggable
+                onDragStart={() => handleDragStart(idx)}
+                onDragOver={(e) => { e.preventDefault(); handleDragOver(idx); }}
+                onDragEnd={handleDragEnd}
+              >
+                <div className="exercise-card-header">
+                  <div className="exercise-number">{idx + 1}</div>
+                  <input
+                    className="exercise-title-input"
+                    value={ex.title}
+                    onChange={(e) => updateExercise(idx, 'title', e.target.value)}
+                    placeholder="Namn på övning"
+                  />
+                  <button type="button" className="remove-btn" onClick={() => removeExercise(idx)} aria-label="Ta bort">
+                    ×
+                  </button>
+                </div>
+
+                <div className="exercise-card-body">
+                  <div className="exercise-settings">
+                    <label className="setting-field">
+                      <span>Tid</span>
+                      <select
+                        value={ex.timePercent || 100}
+                        onChange={(e) => updateExercise(idx, 'timePercent', Number(e.target.value))}
                       >
-                        Ner
-                      </button>
+                        {TIME_PERCENT_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <div className="order-btns">
+                      <button type="button" className="ghost tiny" disabled={idx === 0} onClick={() => moveExercise(idx, idx - 1)}>↑</button>
+                      <button type="button" className="ghost tiny" disabled={idx === exercises.length - 1} onClick={() => moveExercise(idx, idx + 1)}>↓</button>
                     </div>
                   </div>
-                  <div className="audio-controls">
-                    <div className="audio-header">
-                      <p className="mini-title">Paus-meddelande</p>
-                      {ex.uploadingAudio && <span className="badge">Laddar upp...</span>}
-                    </div>
-                    <div className="audio-actions">
-                      {recordingIdx === `pause-${idx}` ? (
-                        <button type="button" onClick={stopRecording} className="ghost tiny">
-                          Stoppa inspelning
-                        </button>
-                      ) : (
-                        <button type="button" onClick={() => startRecording(idx)} className="ghost tiny">
-                          🎙️ Spela in
-                        </button>
+
+                  <input
+                    className="notes-input"
+                    value={ex.notes}
+                    onChange={(e) => updateExercise(idx, 'notes', e.target.value)}
+                    placeholder="Tips / instruktioner (valfritt)"
+                  />
+
+                  {/* Audio Controls - Collapsed */}
+                  <details className="audio-details">
+                    <summary>🎙️ Ljudinspelningar</summary>
+                    <div className="audio-controls-inner">
+                      <div className="audio-row">
+                        <span className="audio-label">Paus-meddelande</span>
+                        {ex.uploadingAudio && <span className="badge small">Laddar...</span>}
+                        <div className="audio-btns">
+                          {recordingIdx === `pause-${idx}` ? (
+                            <button type="button" onClick={stopRecording} className="ghost tiny recording">⏹ Stoppa</button>
+                          ) : (
+                            <button type="button" onClick={() => startRecording(idx)} className="ghost tiny">● Spela in</button>
+                          )}
+                          {ex.audioAssetId && <button type="button" className="ghost tiny" onClick={() => clearAudio(idx)}>Rensa</button>}
+                        </div>
+                      </div>
+                      {ex.audioUrl && (
+                        <audio controls src={`${ex.audioUrl}?v=${Date.now()}`} className="audio-preview" preload="auto" type={ex.audioMime || undefined} />
                       )}
-                      {ex.audioAssetId && (
-                        <button type="button" className="ghost tiny" onClick={() => clearAudio(idx)}>
-                          Rensa ljud
-                        </button>
-                      )}
-                    </div>
-                    {ex.audioUrl && (
-                      <audio
-                        controls
-                        src={`${ex.audioUrl}?v=${Date.now()}`}
-                        className="audio-player"
-                        onError={() =>
-                          setStatus('Kunde inte spela upp ljudet. Prova spela in igen.')
-                        }
-                        onLoadedData={() => setStatus('')}
-                        preload="auto"
-                        type={ex.audioMime || undefined}
-                      >
-                        Din browser stöder inte uppspelning.
-                      </audio>
-                    )}
-                    <div className="audio-header">
-                      <p className="mini-title">Halvtidsljud</p>
-                    </div>
-                    <div className="audio-actions">
-                      {recordingIdx === `half-${idx}` ? (
-                        <button type="button" onClick={stopRecording} className="ghost tiny">
-                          Stoppa inspelning
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => startRecording(idx, { half: true })}
-                          className="ghost tiny"
-                        >
-                          🎙️ Spela in halvtid
-                        </button>
-                      )}
-                      {ex.halfAudioAssetId && (
-                        <button type="button" className="ghost tiny" onClick={() => clearAudio(idx, { half: true })}>
-                          Rensa halvtid
-                        </button>
+
+                      <div className="audio-row">
+                        <span className="audio-label">Halvtidsljud</span>
+                        <div className="audio-btns">
+                          {recordingIdx === `half-${idx}` ? (
+                            <button type="button" onClick={stopRecording} className="ghost tiny recording">⏹ Stoppa</button>
+                          ) : (
+                            <button type="button" onClick={() => startRecording(idx, { half: true })} className="ghost tiny">● Spela in</button>
+                          )}
+                          {ex.halfAudioAssetId && <button type="button" className="ghost tiny" onClick={() => clearAudio(idx, { half: true })}>Rensa</button>}
+                        </div>
+                      </div>
+                      {ex.halfAudioUrl && (
+                        <audio controls src={`${ex.halfAudioUrl}?v=${Date.now()}`} className="audio-preview" preload="auto" type={ex.halfAudioMime || undefined} />
                       )}
                     </div>
-                    {ex.halfAudioUrl && (
-                      <audio
-                        controls
-                        src={`${ex.halfAudioUrl}?v=${Date.now()}`}
-                        className="audio-player"
-                        onError={() =>
-                          setStatus('Kunde inte spela upp halvtidsljudet. Prova spela in igen.')
-                        }
-                        onLoadedData={() => setStatus('')}
-                        preload="auto"
-                        type={ex.halfAudioMime || undefined}
-                      >
-                        Din browser stöder inte uppspelning.
-                      </audio>
-                    )}
-                  </div>
+                  </details>
+                </div>
               </div>
-              <button type="button" className="ghost icon-only" onClick={() => removeExercise(idx)} aria-label="Ta bort">
-                🗑️
-              </button>
-            </div>
-          ))}
-          <button type="button" onClick={addExercise} className="ghost">
-            + Lägg till moment
+            ))}
+          </div>
+
+          <button type="button" onClick={addExercise} className="add-exercise-btn">
+            + Lägg till övning
           </button>
         </div>
 
-        <button type="submit">Spara pass</button>
-        {status && <div className="status">{status}</div>}
+        <div className="editor-actions">
+          <button type="submit" className="save-btn">Spara pass</button>
+        </div>
+
+        {status && <div className="editor-status">{status}</div>}
       </form>
     </div>
   );
