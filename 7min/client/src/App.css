@@ -1131,7 +1131,15 @@ button.tiny {
    ═══════════════════════════════════════════════════════════ */
 
 .progress-grid {
-  max-width: 700px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.progress-grid .panel {
+  width: 100%;
 }
 
 .week-progress {
@@ -1207,10 +1215,10 @@ button.tiny {
 }
 
 .day-bar-container {
-  width: 20px;
-  height: 60px;
+  width: 24px;
+  height: 80px;
   background: var(--bg-secondary);
-  border-radius: 10px;
+  border-radius: 12px;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -1220,13 +1228,13 @@ button.tiny {
 .day-bar {
   width: 100%;
   background: var(--accent);
-  border-radius: 10px;
+  border-radius: 12px;
   min-height: 4px;
   transition: height 0.4s ease;
 }
 
 .day-label {
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   font-weight: 600;
   color: var(--text-secondary);
 }
@@ -1236,7 +1244,7 @@ button.tiny {
 }
 
 .day-points {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   color: var(--text-muted);
 }
 
@@ -1245,6 +1253,35 @@ button.tiny {
   color: var(--text-secondary);
   padding: 2rem;
   font-size: 1.1rem;
+}
+
+/* Desktop: larger bars */
+@media (min-width: 700px) {
+  .week-progress .week-summary .points {
+    font-size: 3.5rem;
+  }
+
+  .week-progress .week-summary .label {
+    font-size: 1.3rem;
+  }
+
+  .day-bar-container {
+    width: 32px;
+    height: 100px;
+  }
+
+  .week-day {
+    padding: 1rem 0.75rem;
+    gap: 0.75rem;
+  }
+
+  .day-label {
+    font-size: 1rem;
+  }
+
+  .day-points {
+    font-size: 0.9rem;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════

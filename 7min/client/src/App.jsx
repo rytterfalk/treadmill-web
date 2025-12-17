@@ -620,17 +620,6 @@ function App() {
               onSave={handleSaveEquipment}
             />
           )}
-          {view === 'dashboard' && (
-            <div>
-              <div className="panel-header">
-                <div>
-                  <p className="eyebrow">Progress</p>
-                  <h2>Dina senaste pass</h2>
-                </div>
-              </div>
-              <SessionList sessions={recentSessions} />
-            </div>
-          )}
         </section>
       </div>
     </div>
