@@ -73,6 +73,15 @@ function App() {
       to: end.toISOString().slice(0, 10),
     };
   });
+  const [favorites, setFavorites] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('7min_favorites') || '[]');
+    } catch {
+      return [];
+    }
+  });
+  const [showQuickSelect, setShowQuickSelect] = useState(false);
+  const [editingProgram, setEditingProgram] = useState(null); // For editing existing programs
 
   // Helper to format duration
   function formatDuration(seconds) {
@@ -81,6 +90,33 @@ function App() {
     if (mins < 1) return `${seconds}s`;
     return `${mins} min`;
   }
+
+  // Toggle favorite
+  function toggleFavorite(programId) {
+    setFavorites((prev) => {
+      const next = prev.includes(programId)
+        ? prev.filter((id) => id !== programId)
+        : [...prev, programId];
+      localStorage.setItem('7min_favorites', JSON.stringify(next));
+      return next;
+    });
+  }
+
+  // Sort programs with favorites first
+  const sortedPrograms = useMemo(() => {
+    return [...programs].sort((a, b) => {
+      const aFav = favorites.includes(a.id);
+      const bFav = favorites.includes(b.id);
+      if (aFav && !bFav) return -1;
+      if (!aFav && bFav) return 1;
+      return 0;
+    });
+  }, [programs, favorites]);
+
+  // Get favorite programs for quick select
+  const favoritePrograms = useMemo(() => {
+    return programs.filter((p) => favorites.includes(p.id));
+  }, [programs, favorites]);
 
   useEffect(() => {
     loadEquipment();
@@ -483,7 +519,6 @@ function App() {
           view={view}
           onChangeView={setView}
           onLogout={handleLogout}
-          onNewProgram={() => setView('builder')}
         />
 
         {status && <div className="status floating">{status}</div>}
@@ -543,114 +578,167 @@ function App() {
     );
   }
 
+  // PROGRAMS VIEW - "Passen"
+  if (view === 'programs' || view === 'builder') {
+    return (
+      <div className="page">
+        <NavBar user={user} view={view} onChangeView={setView} onLogout={handleLogout} />
+        {status && <div className="status floating">{status}</div>}
+
+        <div className="grid programs-grid">
+          <section className="panel">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Alla pass</p>
+                <h2>Passen</h2>
+              </div>
+              <button onClick={() => { setEditingProgram(null); setView('builder'); }}>+ Skapa nytt pass</button>
+            </div>
+            <div className="program-list">
+              {sortedPrograms.map((program) => {
+                const isFav = favorites.includes(program.id);
+                return (
+                  <div
+                    key={program.id}
+                    className={`program-card ${selectedProgramId === program.id ? 'active' : ''}`}
+                  >
+                    <button
+                      className={`fav-btn ${isFav ? 'is-fav' : ''}`}
+                      onClick={() => toggleFavorite(program.id)}
+                      title={isFav ? 'Ta bort favorit' : 'Lägg till favorit'}
+                    >
+                      {isFav ? '★' : '☆'}
+                    </button>
+                    <div className="program-content" onClick={() => { selectProgram(program.id); setView('dashboard'); }}>
+                      <div className="program-title">{program.title}</div>
+                      <div className="program-meta">
+                        {program.rounds} varv • {program.is_public ? 'Delad' : 'Privat'}
+                      </div>
+                      <div className="program-meta subtle">
+                        {programStats[program.id]
+                          ? `${Math.round(programStats[program.id].totalSeconds / 60)} min • ${programStats[program.id].moments} moment`
+                          : '— min • — moment'}
+                      </div>
+                      <p className="program-desc">{program.description || 'Inget upplägg än'}</p>
+                    </div>
+                    <div className="card-actions">
+                      <button type="button" className="ghost tiny" onClick={() => { selectProgram(program.id); setEditingProgram(program); setView('builder'); }}>
+                        ✏️ Editera
+                      </button>
+                      {(program.user_id === null && !program.is_public) || program.user_id ? (
+                        <button type="button" className="ghost tiny danger" onClick={() => { if (window.confirm('Ta bort detta pass?')) handleDeleteProgram(program.id); }}>
+                          🗑 Ta bort
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+              {!programs.length && <p className="empty-state">Du har inga pass än. Skapa ett!</p>}
+            </div>
+          </section>
+
+          {view === 'builder' && (
+            <section className="panel">
+              <ProgramEditor
+                onSave={(data) => { handleSaveProgram(data); setView('programs'); }}
+                prefill={editingProgram ? { program: editingProgram, exercises: selectedExercises } : null}
+              />
+            </section>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // EQUIPMENT VIEW
+  if (view === 'equipment') {
+    return (
+      <div className="page">
+        <NavBar user={user} view={view} onChangeView={setView} onLogout={handleLogout} />
+        {status && <div className="status floating">{status}</div>}
+        <div className="grid progress-grid">
+          <section className="panel">
+            <EquipmentSelector allEquipment={allEquipment} selected={equipmentSlugs} onSave={handleSaveEquipment} />
+          </section>
+        </div>
+      </div>
+    );
+  }
+
+  // START! VIEW - Main workout view (dashboard)
   return (
     <div className="page">
-      <NavBar
-        user={user}
-        view={view}
-        onChangeView={setView}
-        onLogout={handleLogout}
-        onNewProgram={() => setView('builder')}
-      />
-
+      <NavBar user={user} view={view} onChangeView={setView} onLogout={handleLogout} />
       {status && <div className="status floating">{status}</div>}
 
-      <div className="grid">
-        <section className="panel">
+      <div className="start-view">
+        <section className="panel hero start-panel">
           <div className="panel-header">
             <div>
-              <p className="eyebrow">Mina pass</p>
-              <h2>Bibliotek</h2>
+              <p className="eyebrow">Ditt träningspass</p>
+              <h2>{selectedProgram?.title || 'Välj ett pass'}</h2>
             </div>
-            <button onClick={() => setView('builder')}>Nytt pass</button>
-          </div>
-          <div className="program-list">
-            {programs.map((program) => (
-              <button
-                key={program.id}
-                className={`program-card ${selectedProgramId === program.id ? 'active' : ''}`}
-                onClick={() => selectProgram(program.id)}
-              >
-                <div className="program-title">{program.title}</div>
-                <div className="program-meta">
-                  {program.rounds} varv • {program.is_public ? 'Delad' : 'Privat'}
-                </div>
-                <div className="program-meta subtle">
-                  {programStats[program.id]
-                    ? `${Math.round(programStats[program.id].totalSeconds / 60)} min • ${
-                        programStats[program.id].moments
-                      } moment`
-                    : '— min • — moment'}
-                </div>
-                <p className="program-desc">{program.description || 'Inget upplägg än'}</p>
-                <div className="card-actions">
-                  <button
-                    type="button"
-                    className="ghost tiny"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      selectProgram(program.id);
-                      setView('builder');
-                    }}
-                  >
-                    ✏️ Editera
-                  </button>
-                  {(program.user_id === null && !program.is_public) || program.user_id ? (
-                    <button
-                      type="button"
-                      className="ghost tiny danger"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (window.confirm('Ta bort detta pass?')) {
-                          handleDeleteProgram(program.id);
-                        }
-                      }}
-                    >
-                      🗑 Ta bort
-                    </button>
-                  ) : null}
-                </div>
+            <div className="quick-select-container">
+              <button className="ghost" onClick={() => setShowQuickSelect(!showQuickSelect)}>
+                Byt träning ▾
               </button>
-            ))}
-            {!programs.length && <p>Du har inga pass än. Skapa ett via Bygg-läget.</p>}
-          </div>
-        </section>
-
-        <section className="panel hero">
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">Timer</p>
-              <h2>{selectedProgram?.title || 'Inget pass valt'}</h2>
+              {showQuickSelect && (
+                <div className="quick-select-dropdown">
+                  {favoritePrograms.length > 0 && (
+                    <>
+                      <div className="dropdown-label">Favoriter</div>
+                      {favoritePrograms.map((p) => (
+                        <button key={p.id} className="dropdown-item" onClick={() => { selectProgram(p.id); setShowQuickSelect(false); }}>
+                          ★ {p.title}
+                        </button>
+                      ))}
+                      <div className="dropdown-divider" />
+                    </>
+                  )}
+                  <button className="dropdown-item all-programs" onClick={() => { setShowQuickSelect(false); setView('programs'); }}>
+                    Visa alla pass →
+                  </button>
+                </div>
+              )}
             </div>
-            <span className="badge">{selectedExercises.length} moment</span>
           </div>
 
-          <WorkoutTimer
-            program={{
-              ...(selectedProgram || { title: 'Välj pass', rounds: 1 }),
-              rounds: selectedProgram?.rounds || 1,
-            }}
-            exercises={selectedExercises.length ? selectedExercises : defaultExercises}
-            stats={selectedProgramStats}
-            onComplete={handleSessionComplete}
-          />
+          {selectedProgram ? (
+            <WorkoutTimer
+              program={{ ...selectedProgram, rounds: selectedProgram.rounds || 1 }}
+              exercises={selectedExercises.length ? selectedExercises : defaultExercises}
+              stats={selectedProgramStats}
+              onComplete={handleSessionComplete}
+            />
+          ) : (
+            <div className="no-program-selected">
+              <p>Inget pass valt</p>
+              <button onClick={() => setView('programs')}>Välj träningspass</button>
+            </div>
+          )}
         </section>
 
-        <section className="panel">
-          {view === 'builder' && (
-            <ProgramEditor
-              onSave={handleSaveProgram}
-              prefill={selectedProgram ? { program: selectedProgram, exercises: selectedExercises } : null}
-            />
-          )}
-          {view === 'equipment' && (
-            <EquipmentSelector
-              allEquipment={allEquipment}
-              selected={equipmentSlugs}
-              onSave={handleSaveEquipment}
-            />
-          )}
-        </section>
+        {recentSessions.length > 0 && (
+          <section className="panel recent-session-panel">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Senaste passet</p>
+                <h3>{recentSessions[0]?.program_title || 'Eget pass'}</h3>
+              </div>
+              <span className="badge">{formatDuration(recentSessions[0]?.duration_seconds)}</span>
+            </div>
+            <p className="session-time">
+              {new Date(recentSessions[0]?.completed_at).toLocaleString('sv-SE', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </p>
+          </section>
+        )}
       </div>
     </div>
   );

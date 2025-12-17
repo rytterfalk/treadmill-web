@@ -1,4 +1,4 @@
-function NavBar({ user, view, onChangeView, onLogout, onNewProgram }) {
+function NavBar({ user, view, onChangeView, onLogout }) {
   return (
     <header className="topbar">
       <div className="brand">
@@ -14,7 +14,13 @@ function NavBar({ user, view, onChangeView, onLogout, onNewProgram }) {
           className={view === 'dashboard' ? 'menu-item active' : 'menu-item'}
           onClick={() => onChangeView('dashboard')}
         >
-          Översikt
+          START!
+        </button>
+        <button
+          className={view === 'programs' ? 'menu-item active' : 'menu-item'}
+          onClick={() => onChangeView('programs')}
+        >
+          Passen
         </button>
         <button
           className={view === 'calendar' ? 'menu-item active' : 'menu-item'}
@@ -28,12 +34,6 @@ function NavBar({ user, view, onChangeView, onLogout, onNewProgram }) {
         >
           Utrustning
         </button>
-        <button
-          className={view === 'builder' ? 'menu-item active' : 'menu-item'}
-          onClick={() => onChangeView('builder')}
-        >
-          Bygg pass
-        </button>
       </nav>
 
       <div className="user-area">
@@ -41,9 +41,6 @@ function NavBar({ user, view, onChangeView, onLogout, onNewProgram }) {
           <div className="user-name">{user.name}</div>
           <small>{user.email}</small>
         </div>
-        <button className="ghost" onClick={onNewProgram}>
-          + Nytt pass
-        </button>
         <button className="ghost" onClick={onLogout}>
           Logga ut
         </button>

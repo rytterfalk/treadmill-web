@@ -1501,3 +1501,161 @@ button.tiny {
     min-width: 0;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   START VIEW - Clean focused workout view
+   ═══════════════════════════════════════════════════════════ */
+
+.start-view {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.start-panel {
+  padding: 1.5rem;
+}
+
+.no-program-selected {
+  text-align: center;
+  padding: 3rem 1rem;
+}
+
+.no-program-selected p {
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+  font-size: 1.1rem;
+}
+
+.no-program-selected button {
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+}
+
+.recent-session-panel {
+  padding: 1.25rem;
+}
+
+.recent-session-panel h3 {
+  margin: 0;
+}
+
+.session-time {
+  color: var(--text-secondary);
+  margin: 0.5rem 0 0;
+  text-transform: capitalize;
+}
+
+/* Quick select dropdown */
+.quick-select-container {
+  position: relative;
+}
+
+.quick-select-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.5rem;
+  min-width: 220px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 200;
+  padding: 0.5rem 0;
+}
+
+.dropdown-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  padding: 0.5rem 1rem 0.25rem;
+}
+
+.dropdown-item {
+  width: 100%;
+  text-align: left;
+  padding: 0.75rem 1rem;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 1rem;
+  display: block;
+}
+
+.dropdown-item:hover {
+  background: var(--bg-secondary);
+}
+
+.dropdown-item.all-programs {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 0.5rem 0;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PROGRAMS VIEW - Pass listing
+   ═══════════════════════════════════════════════════════════ */
+
+.programs-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+@media (min-width: 900px) {
+  .programs-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    max-width: 1100px;
+  }
+}
+
+/* Program card with favorite button */
+.program-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.program-card .fav-btn {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  font-size: 1.4rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 1;
+}
+
+.program-card .fav-btn:hover {
+  color: var(--accent);
+  transform: scale(1.2);
+}
+
+.program-card .fav-btn.is-fav {
+  color: var(--accent);
+}
+
+.program-content {
+  cursor: pointer;
+  flex: 1;
+  padding-right: 2rem;
+}
