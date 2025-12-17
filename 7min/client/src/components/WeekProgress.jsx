@@ -1,11 +1,11 @@
 const WEEKDAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
 
-function WeekProgress({ days, cap = 60 }) {
+function WeekProgress({ days, cap = 60, selectedDate, onSelectDate }) {
   // Get current week (Mon-Sun)
   const today = new Date();
   const currentDayOfWeek = today.getDay(); // 0=Sun, 1=Mon, ...
   const mondayOffset = currentDayOfWeek === 0 ? -6 : 1 - currentDayOfWeek;
-  
+
   const weekDays = [];
   for (let i = 0; i < 7; i++) {
     const date = new Date(today);
@@ -19,6 +19,7 @@ function WeekProgress({ days, cap = 60 }) {
       hitCap: dayData?.hitCap || false,
       isToday: dateStr === today.toISOString().slice(0, 10),
       isPast: date < new Date(today.toISOString().slice(0, 10)),
+      isSelected: dateStr === selectedDate,
     });
   }
 
@@ -37,27 +38,28 @@ function WeekProgress({ days, cap = 60 }) {
           <div className="week-bar-inner" style={{ width: `${weekPercent}%` }} />
         </div>
       </div>
-      
+
       <div className="week-days">
         {weekDays.map((day) => {
           const percent = cap ? Math.min(100, Math.round((day.points / cap) * 100)) : 0;
           const filled = day.hitCap || percent >= 100;
-          
+
           return (
-            <div 
-              key={day.date} 
-              className={`week-day ${day.isToday ? 'today' : ''} ${filled ? 'filled' : ''}`}
+            <button
+              key={day.date}
+              className={`week-day ${day.isToday ? 'today' : ''} ${filled ? 'filled' : ''} ${day.isSelected ? 'selected' : ''}`}
               title={`${day.date}: ${day.points}p`}
+              onClick={() => onSelectDate?.(day.isSelected ? null : day.date)}
             >
               <div className="day-bar-container">
-                <div 
-                  className="day-bar" 
+                <div
+                  className="day-bar"
                   style={{ height: `${Math.max(4, percent)}%` }}
                 />
               </div>
               <div className="day-label">{day.weekday}</div>
               <div className="day-points">{day.points > 0 ? day.points : '–'}</div>
-            </div>
+            </button>
           );
         })}
       </div>

@@ -1202,11 +1202,29 @@ button.tiny {
   border: 2px solid transparent;
   border-radius: var(--radius-md);
   transition: all 0.2s ease;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+}
+
+.week-day:hover {
+  background: var(--bg-secondary);
+  transform: translateY(-2px);
 }
 
 .week-day.today {
   border-color: var(--accent);
   background: rgba(247, 199, 43, 0.1);
+}
+
+.week-day.selected {
+  border-color: var(--accent);
+  background: rgba(247, 199, 43, 0.2);
+  transform: scale(1.05);
+}
+
+.week-day.selected .day-label {
+  color: var(--accent);
 }
 
 .week-day.filled .day-bar {

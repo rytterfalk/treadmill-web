@@ -57,6 +57,7 @@ function App() {
   const [calendarDays, setCalendarDays] = useState([]);
   const [weekBarDays, setWeekBarDays] = useState([]);
   const [weekSessions, setWeekSessions] = useState([]);
+  const [selectedProgressDate, setSelectedProgressDate] = useState(null); // For Progress view day filter
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
     return today.toISOString().slice(0, 10);
@@ -72,6 +73,14 @@ function App() {
       to: end.toISOString().slice(0, 10),
     };
   });
+
+  // Helper to format duration
+  function formatDuration(seconds) {
+    if (!seconds) return 'Okänd tid';
+    const mins = Math.round(seconds / 60);
+    if (mins < 1) return `${seconds}s`;
+    return `${mins} min`;
+  }
 
   useEffect(() => {
     loadEquipment();
@@ -453,6 +462,20 @@ function App() {
   const equipmentSlugs = userEquipment.map((e) => e.slug);
 
   if (view === 'calendar') {
+    // Filter sessions by selected day if a day is selected
+    const filteredSessions = selectedProgressDate
+      ? weekSessions.filter((s) => s.completed_at?.slice(0, 10) === selectedProgressDate)
+      : weekSessions;
+
+    // Format selected day for display
+    const selectedDayLabel = selectedProgressDate
+      ? new Date(selectedProgressDate).toLocaleDateString('sv-SE', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'short',
+        })
+      : null;
+
     return (
       <div className="page">
         <NavBar
@@ -474,24 +497,29 @@ function App() {
               </div>
               <span className="badge">{pointsCap}p/dag</span>
             </div>
-            <WeekProgress days={weekBarDays} cap={pointsCap} />
+            <WeekProgress
+              days={weekBarDays}
+              cap={pointsCap}
+              selectedDate={selectedProgressDate}
+              onSelectDate={setSelectedProgressDate}
+            />
           </section>
 
           <section className="panel">
             <div className="panel-header">
               <div>
-                <p className="eyebrow">Veckans pass</p>
+                <p className="eyebrow">{selectedProgressDate ? selectedDayLabel : 'Veckans pass'}</p>
                 <h2>Genomförda</h2>
               </div>
-              <span className="badge">{weekSessions.length} pass</span>
+              <span className="badge">{filteredSessions.length} pass</span>
             </div>
-            {weekSessions?.length ? (
+            {filteredSessions?.length ? (
               <div className="session-list">
-                {weekSessions.map((s) => (
+                {filteredSessions.map((s) => (
                   <div key={s.id} className="session">
                     <div className="session-title">{s.program_title || 'Eget pass'}</div>
                     <div className="session-meta">
-                      {s.duration_seconds ? `${s.duration_seconds}s` : 'Okänd tid'} •{' '}
+                      {formatDuration(s.duration_seconds)} •{' '}
                       {new Date(s.completed_at).toLocaleString('sv-SE', {
                         weekday: 'short',
                         day: 'numeric',
@@ -505,7 +533,9 @@ function App() {
                 ))}
               </div>
             ) : (
-              <p className="empty-state">Inga pass denna vecka ännu. Dags att köra! 💪</p>
+              <p className="empty-state">
+                {selectedProgressDate ? 'Inga pass denna dag.' : 'Inga pass denna vecka ännu. Dags att köra! 💪'}
+              </p>
             )}
           </section>
         </div>
