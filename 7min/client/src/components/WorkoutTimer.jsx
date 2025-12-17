@@ -31,7 +31,7 @@ function playTone(frequency = 720, volume = 0.08, duration = 0.25) {
 
 // Soft tick sound for each second during exercises
 function playTick() {
-  playTone(1200, 0.03, 0.05); // High freq, low volume, very short
+  playTone(800, 0.06, 0.08); // Medium freq, audible volume, short
 }
 
 function formatSeconds(totalSeconds) {
@@ -69,12 +69,16 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
     });
 
     for (let round = 0; round < runRounds; round += 1) {
+      const isLastRound = round === runRounds - 1;
+
       exercises.forEach((ex, idx) => {
+        const isLastExerciseInRound = idx === exercises.length - 1;
+        const isVeryLastExercise = isLastRound && isLastExerciseInRound;
+
         // Find the NEXT exercise to attach its audio to the rest period
-        const isLastInRound = idx === exercises.length - 1;
         const nextExInRound = exercises[idx + 1];
-        const nextExNextRound = round < runRounds - 1 ? exercises[0] : null;
-        const nextEx = isLastInRound ? nextExNextRound : nextExInRound;
+        const nextExNextRound = !isLastRound ? exercises[0] : null;
+        const nextEx = isLastExerciseInRound ? nextExNextRound : nextExInRound;
 
         seq.push({
           type: 'exercise',
@@ -86,7 +90,9 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
           audioUrl: ex.audioUrl || null,
           halfAudioUrl: ex.halfAudioUrl || null,
         });
-        if (rbe > 0) {
+
+        // Add rest after exercise, but NOT after the very last exercise
+        if (rbe > 0 && !isVeryLastExercise) {
           seq.push({
             type: 'rest',
             label: 'Vila',
@@ -99,7 +105,8 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
           });
         }
       });
-      if (round < runRounds - 1 && rbr > 0) {
+
+      if (!isLastRound && rbr > 0) {
         // Between-rounds rest - next exercise is first of next round
         const nextEx = exercises[0];
         seq.push({
@@ -256,15 +263,22 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
     };
   }, [status]);
 
+  // Countdown effect - plays beeps for 3, 2, 1 before exercise starts
   useEffect(() => {
     if (status !== 'countdown') return undefined;
+
+    // Play the first beep immediately when countdown starts
+    playTone(520);
+
     const t = setInterval(() => {
       setCountdown((c) => {
         if (c <= 1) {
+          // Final beep and start running
           playTone(860);
           setStatus('running');
           return 3;
         }
+        // Countdown beep
         playTone(520);
         return c - 1;
       });
@@ -324,10 +338,10 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
           }
 
           const nextStep = schedule[nextIndex];
+          setStepIndex(nextIndex);
+
           // If next step is exercise, trigger countdown before starting it
           if (nextStep.type === 'exercise') {
-            playTone(860); // Signal that rest is done
-            setStepIndex(nextIndex);
             setRemaining(nextStep.duration);
             setCountdown(3);
             setStatus('countdown');
@@ -335,7 +349,6 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
           }
 
           // Otherwise just move to next step (rest to rest, etc.)
-          setStepIndex(nextIndex);
           return schedule[nextIndex].duration;
         }
 
@@ -349,7 +362,7 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
 
   function startCountdown(targetIndex = 0) {
     if (!schedule[targetIndex]) return;
-    playTone(520);
+    // Note: countdown effect plays the first beep automatically
     setStepIndex(targetIndex);
     setRemaining(schedule[targetIndex].duration || 0);
     setCountdown(3);
@@ -362,7 +375,6 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
       // Resume from pause - if we're in exercise, go through countdown
       const step = schedule[stepIndex];
       if (step?.type === 'exercise') {
-        playTone(520);
         setCountdown(3);
         setStatus('countdown');
       } else {
