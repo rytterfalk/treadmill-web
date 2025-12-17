@@ -255,17 +255,17 @@ body.workout-lock {
 }
 
 .workout-content .ring-wrap {
-  width: min(280px, 65vw);
-  max-width: 300px;
+  width: clamp(220px, 40vmin, 450px);
+  max-width: 90vw;
 }
 
 .workout-content .ring-time {
-  font-size: clamp(2.6rem, 12vw, 3.5rem);
+  font-size: clamp(2.6rem, 8vmin, 5rem);
   color: #ffffff;
 }
 
 .workout-content .ring-sub {
-  font-size: 1rem;
+  font-size: clamp(1rem, 2.5vmin, 1.5rem);
   color: #ffffff;
 }
 
@@ -362,21 +362,88 @@ body.workout-lock {
   border-color: #f7c72b;
 }
 
-/* Larger screens: side-by-side layout */
-@media (min-width: 600px) and (min-height: 500px) {
+/* Larger screens: better use of space */
+@media (min-width: 700px) {
+  .workout-overlay-bg {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .workout-overlay-container {
+    max-width: 1200px;
+    max-height: 100vh;
+    margin: 0 auto;
+  }
+
+  .workout-content {
+    padding: 20px 32px;
+  }
+
   .workout-content .immersive {
     flex-direction: row;
     align-items: stretch;
+    gap: 2rem;
   }
+
   .workout-content .ring-card {
-    flex: 1.2;
+    flex: 1.5;
+    justify-content: center;
   }
-  .workout-content .up-next {
-    flex: 0.8;
-    max-width: 340px;
-  }
+
   .workout-content .ring-wrap {
-    width: min(320px, 45vw);
+    width: clamp(300px, 35vw, 500px);
+  }
+
+  .workout-content .ring-time {
+    font-size: clamp(3.5rem, 6vw, 6rem);
+  }
+
+  .workout-content .ring-sub {
+    font-size: clamp(1.1rem, 1.8vw, 1.6rem);
+  }
+
+  .workout-content .up-next {
+    flex: 1;
+    max-width: 400px;
+    padding: 1.2rem;
+  }
+
+  .workout-content .next-list {
+    max-height: 250px;
+  }
+
+  .workout-content .timer-actions {
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .workout-content .timer-actions button {
+    min-height: 56px;
+    font-size: 1.1rem;
+  }
+
+  .workout-content .secondary-actions {
+    justify-content: center;
+  }
+
+  .workout-header h2 {
+    font-size: 1.6rem;
+  }
+}
+
+/* Extra large screens */
+@media (min-width: 1100px) {
+  .workout-content .ring-wrap {
+    width: clamp(400px, 30vw, 550px);
+  }
+
+  .workout-content .ring-time {
+    font-size: clamp(4.5rem, 5vw, 7rem);
+  }
+
+  .workout-content .up-next {
+    max-width: 450px;
   }
 }
 
