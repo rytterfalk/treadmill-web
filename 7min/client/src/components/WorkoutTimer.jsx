@@ -9,7 +9,7 @@ function getAudioContext() {
   return audioCtx;
 }
 
-function playTone(frequency = 720) {
+function playTone(frequency = 720, volume = 0.08, duration = 0.25) {
   try {
     const ctx = getAudioContext();
     if (!ctx) return;
@@ -19,14 +19,19 @@ function playTone(frequency = 720) {
     const oscillator = ctx.createOscillator();
     const gain = ctx.createGain();
     oscillator.frequency.value = frequency;
-    gain.gain.value = 0.08;
+    gain.gain.value = volume;
     oscillator.connect(gain).connect(ctx.destination);
     oscillator.start();
-    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.25);
-    oscillator.stop(ctx.currentTime + 0.3);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
+    oscillator.stop(ctx.currentTime + duration + 0.05);
   } catch (err) {
     // Best-effort: ljud är valfritt
   }
+}
+
+// Soft tick sound for each second during exercises
+function playTick() {
+  playTone(1200, 0.03, 0.05); // High freq, low volume, very short
 }
 
 function formatSeconds(totalSeconds) {
@@ -162,15 +167,40 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
     lastAudioPlayedRef.current = null;
   }, [scheduleKey]);
 
+  // Play audio announcement during REST as preparation for next exercise
+  // Special case: First exercise has no rest before it, so play during countdown
   useEffect(() => {
     const step = schedule[stepIndex];
-    if (status !== 'running') return;
+    if (!step) return;
+
     const prev = schedule[stepIndex - 1];
     const previousWasRest = prev?.type === 'rest';
-    // Spela paus-meddelande precis när vi går från vila till nytt moment.
+    const isFirstExercise = stepIndex === 0 && step.type === 'exercise';
+
+    // Case 1: First exercise - play during countdown
     if (
+      isFirstExercise &&
+      status === 'countdown' &&
+      step.audioUrl &&
+      lastAudioPlayedRef.current !== stepIndex
+    ) {
+      try {
+        const player = voicePlayerRef.current || new Audio();
+        player.src = step.audioUrl;
+        player.currentTime = 0;
+        voicePlayerRef.current = player;
+        player.play().catch(() => {});
+        lastAudioPlayedRef.current = stepIndex;
+      } catch (err) {
+        // ignore playback errors
+      }
+    }
+
+    // Case 2: After rest - play when transitioning from rest to exercise
+    if (
+      status === 'running' &&
       previousWasRest &&
-      step?.type === 'exercise' &&
+      step.type === 'exercise' &&
       step.audioUrl &&
       lastAudioPlayedRef.current !== stepIndex
     ) {
@@ -250,6 +280,7 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
         const halfway = Math.floor(step.duration / 2);
         if (step.type === 'exercise') {
           if (nextTime === halfway) {
+            // Halfway audio or tone
             if (step.halfAudioUrl) {
               try {
                 const player = voicePlayerRef.current || new Audio();
@@ -263,11 +294,16 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
             } else {
               playTone(760);
             }
-          } else if (nextTime <= 5 && nextTime > 0) {
+          } else if (nextTime <= 3 && nextTime > 0) {
+            // Final 3 seconds countdown beep (matching start countdown)
             playTone(540);
+          } else if (nextTime > 3) {
+            // Soft tick sound every second during exercise
+            playTick();
           }
         }
         if (step.type === 'rest' && nextTime <= 3 && nextTime > 0) {
+          // Rest countdown beeps
           playTone(520);
         }
 
