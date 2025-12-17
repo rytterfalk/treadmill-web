@@ -9,6 +9,26 @@ function getAudioContext() {
   return audioCtx;
 }
 
+// Wake up AudioContext - must be called from a user gesture (click/touch)
+function wakeAudio() {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+    // Play a silent tone to fully unlock audio on iOS
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    gain.gain.value = 0; // Silent
+    oscillator.connect(gain).connect(ctx.destination);
+    oscillator.start();
+    oscillator.stop(ctx.currentTime + 0.01);
+  } catch (err) {
+    // ignore
+  }
+}
+
 function playTone(frequency = 720, volume = 0.08, duration = 0.25) {
   try {
     const ctx = getAudioContext();
@@ -338,18 +358,18 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
           }
 
           const nextStep = schedule[nextIndex];
-          setStepIndex(nextIndex);
+          const currentStepWasRestOrPrep = step.type === 'rest' || step.type === 'prep';
 
-          // If next step is exercise, trigger countdown before starting it
-          if (nextStep.type === 'exercise') {
-            setRemaining(nextStep.duration);
-            setCountdown(3);
-            setStatus('countdown');
-            return nextStep.duration;
+          // Play "GO!" tone when transitioning from rest/prep to exercise
+          if (currentStepWasRestOrPrep && nextStep.type === 'exercise') {
+            playTone(860); // High beep = GO!
           }
 
-          // Otherwise just move to next step (rest to rest, etc.)
-          return schedule[nextIndex].duration;
+          setStepIndex(nextIndex);
+
+          // Go directly to next step - no extra countdown screen
+          // (countdown beeps are already played during the last 3s of rest/prep)
+          return nextStep.duration;
         }
 
         return nextTime;
@@ -371,19 +391,16 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
 
   function start() {
     if (!schedule.length) return;
+
+    // Wake up audio on user gesture (required for iOS/mobile)
+    wakeAudio();
+
     if (status === 'paused' && remaining > 0) {
-      // Resume from pause - if we're in exercise, go through countdown
-      const step = schedule[stepIndex];
-      if (step?.type === 'exercise') {
-        setCountdown(3);
-        setStatus('countdown');
-      } else {
-        // For rest/prep, just continue running
-        setStatus('running');
-      }
+      // Resume from pause - just continue running (no extra countdown)
+      setStatus('running');
       return;
     }
-    // First start - begin with prep step (index 0), no countdown needed for prep
+    // First start - begin with prep step (index 0)
     const firstStep = schedule[0];
     if (firstStep?.type === 'prep') {
       setStepIndex(0);
