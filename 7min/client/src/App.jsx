@@ -8,6 +8,7 @@ import WorkoutScreen from './components/WorkoutScreen';
 import EquipmentSelector from './components/EquipmentSelector';
 import SessionList from './components/SessionList';
 import WeekBars from './components/WeekBars';
+import WeekProgress from './components/WeekProgress';
 import CalendarGrid from './components/CalendarGrid';
 
 const defaultExercises = [
@@ -55,6 +56,7 @@ function App() {
   const [recentSessions, setRecentSessions] = useState([]);
   const [calendarDays, setCalendarDays] = useState([]);
   const [weekBarDays, setWeekBarDays] = useState([]);
+  const [weekSessions, setWeekSessions] = useState([]);
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
     return today.toISOString().slice(0, 10);
@@ -87,6 +89,7 @@ function App() {
     if (user && view === 'calendar') {
       loadCalendar();
       loadWeekBars();
+      loadWeekSessions();
     }
   }, [user, view, calendarRange.from, calendarRange.to]);
 
@@ -343,6 +346,41 @@ function App() {
     }
   }
 
+  async function loadWeekSessions() {
+    try {
+      // Get current week (Mon-Sun)
+      const today = new Date();
+      const dayOfWeek = today.getDay();
+      const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      const monday = new Date(today);
+      monday.setDate(today.getDate() + mondayOffset);
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+
+      const from = monday.toISOString().slice(0, 10);
+      const to = sunday.toISOString().slice(0, 10);
+
+      const data = await api(`/api/sessions/week?from=${from}&to=${to}`);
+      setWeekSessions(data.sessions || []);
+    } catch (err) {
+      // Fallback to recent sessions if week endpoint doesn't exist
+      const data = await api('/api/sessions/recent?limit=20');
+      // Filter to current week
+      const today = new Date();
+      const dayOfWeek = today.getDay();
+      const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      const monday = new Date(today);
+      monday.setDate(today.getDate() + mondayOffset);
+      monday.setHours(0, 0, 0, 0);
+
+      const weekOnly = (data.sessions || []).filter(s => {
+        const sessionDate = new Date(s.completed_at);
+        return sessionDate >= monday;
+      });
+      setWeekSessions(weekOnly);
+    }
+  }
+
   async function loadDaySessions(date) {
     try {
       const data = await api(`/api/sessions?date=${date}`);
@@ -427,56 +465,47 @@ function App() {
 
         {status && <div className="status floating">{status}</div>}
 
-        <div className="grid">
-          <section className="panel hero">
+        <div className="grid progress-grid">
+          <section className="panel">
             <div className="panel-header">
               <div>
-                <p className="eyebrow">Top-bars</p>
-                <h2>Senaste 8 veckor</h2>
+                <p className="eyebrow">Denna vecka</p>
+                <h2>Din träning</h2>
               </div>
-              <span className="badge">Cap {pointsCap}p/dag</span>
+              <span className="badge">{pointsCap}p/dag</span>
             </div>
-            <WeekBars days={weekBarDays} cap={pointsCap} />
+            <WeekProgress days={weekBarDays} cap={pointsCap} />
           </section>
 
           <section className="panel">
             <div className="panel-header">
               <div>
-                <p className="eyebrow">Kalender</p>
-                <h2>28 dagar</h2>
+                <p className="eyebrow">Veckans pass</p>
+                <h2>Genomförda</h2>
               </div>
+              <span className="badge">{weekSessions.length} pass</span>
             </div>
-            <CalendarGrid days={calendarDays} selectedDate={selectedDate} onSelect={setSelectedDate} />
-
-            <div className="panel-header" style={{ marginTop: '1rem' }}>
-              <div>
-                <p className="eyebrow">Pass</p>
-                <h2>{selectedDate}</h2>
-              </div>
-            </div>
-            {daySessions?.length ? (
-              <div className="day-session-list">
-                {daySessions.map((s) => (
-                  <div key={s.id} className="day-session">
-                    <div className="session-title">
-                      {s.session_type || 'other'} • {s.duration_sec ? `${s.duration_sec}s` : 'okänd tid'}
-                    </div>
+            {weekSessions?.length ? (
+              <div className="session-list">
+                {weekSessions.map((s) => (
+                  <div key={s.id} className="session">
+                    <div className="session-title">{s.program_title || 'Eget pass'}</div>
                     <div className="session-meta">
-                      {s.started_at
-                        ? new Date(s.started_at).toLocaleTimeString('sv-SE', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })
-                        : '—'}
-                      {' • '}
-                      {s.source}
+                      {s.duration_seconds ? `${s.duration_seconds}s` : 'Okänd tid'} •{' '}
+                      {new Date(s.completed_at).toLocaleString('sv-SE', {
+                        weekday: 'short',
+                        day: 'numeric',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
                     </div>
                     {s.notes && <p className="session-notes">{s.notes}</p>}
                   </div>
                 ))}
               </div>
             ) : (
-              <p>Inga pass den dagen.</p>
+              <p className="empty-state">Inga pass denna vecka ännu. Dags att köra! 💪</p>
             )}
           </section>
         </div>

@@ -20,7 +20,7 @@ function NavBar({ user, view, onChangeView, onLogout, onNewProgram }) {
           className={view === 'calendar' ? 'menu-item active' : 'menu-item'}
           onClick={() => onChangeView('calendar')}
         >
-          Kalender
+          Progress
         </button>
         <button
           className={view === 'equipment' ? 'menu-item active' : 'menu-item'}

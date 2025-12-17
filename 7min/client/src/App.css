@@ -1127,6 +1127,127 @@ button.tiny {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   WEEK PROGRESS (New progress view)
+   ═══════════════════════════════════════════════════════════ */
+
+.progress-grid {
+  max-width: 700px;
+}
+
+.week-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.week-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.week-summary .week-total {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.week-summary .points {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.week-summary .label {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+}
+
+.week-bar-outer {
+  height: 12px;
+  background: var(--bg-elevated);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.week-bar-inner {
+  height: 100%;
+  background: var(--accent-gradient);
+  border-radius: 6px;
+  transition: width 0.5s ease;
+}
+
+.week-days {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+
+.week-day {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 0.5rem;
+  background: var(--bg-elevated);
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  transition: all 0.2s ease;
+}
+
+.week-day.today {
+  border-color: var(--accent);
+  background: rgba(247, 199, 43, 0.1);
+}
+
+.week-day.filled .day-bar {
+  background: linear-gradient(160deg, var(--accent), var(--accent-orange));
+  box-shadow: 0 2px 8px rgba(247, 199, 43, 0.4);
+}
+
+.day-bar-container {
+  width: 20px;
+  height: 60px;
+  background: var(--bg-secondary);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+}
+
+.day-bar {
+  width: 100%;
+  background: var(--accent);
+  border-radius: 10px;
+  min-height: 4px;
+  transition: height 0.4s ease;
+}
+
+.day-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.week-day.today .day-label {
+  color: var(--accent);
+}
+
+.day-points {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.empty-state {
+  text-align: center;
+  color: var(--text-secondary);
+  padding: 2rem;
+  font-size: 1.1rem;
+}
+
+/* ═══════════════════════════════════════════════════════════
    CALENDAR
    ═══════════════════════════════════════════════════════════ */
 
