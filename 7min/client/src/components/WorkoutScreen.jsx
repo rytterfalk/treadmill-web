@@ -17,6 +17,7 @@ function WorkoutScreen({ programId }) {
   const [exercises, setExercises] = useState([]);
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState('');
+  const [completedResult, setCompletedResult] = useState(null);
 
   useEffect(() => {
     // Robust iOS scroll lock: prevent the background page from scrolling while workout is active.
@@ -378,6 +379,107 @@ body.workout-lock {
     width: min(320px, 45vw);
   }
 }
+
+/* Completion screen */
+.completion-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px 24px;
+  min-height: 60vh;
+  animation: fadeInUp 0.6s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.completion-icon {
+  font-size: 80px;
+  margin-bottom: 16px;
+  animation: bounce 0.8s ease-out 0.3s both;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+}
+
+.completion-title {
+  font-size: 2.5rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #f7c72b 0%, #f59e0b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0 0 8px 0;
+}
+
+.completion-subtitle {
+  font-size: 1.25rem;
+  color: var(--text-secondary, #b0b0b0);
+  margin: 0 0 32px 0;
+}
+
+.completion-stats {
+  display: flex;
+  gap: 32px;
+  margin-bottom: 40px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 24px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #f7c72b;
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  color: var(--text-secondary, #b0b0b0);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.completion-button {
+  min-height: 56px;
+  padding: 16px 40px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  background: linear-gradient(135deg, #f7c72b 0%, #f59e0b 100%);
+  color: #1a1a1a;
+  border: none;
+  border-radius: 28px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.completion-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(247, 199, 43, 0.3);
+}
+
+.completion-button:active {
+  transform: translateY(0);
+}
 `;
 
   if (status === 'loading') {
@@ -434,15 +536,40 @@ body.workout-lock {
         </div>
 
         <div className="workout-content">
-          <WorkoutTimer
-            program={program}
-            exercises={exercises}
-            stats={stats}
-            compact
-            onComplete={(result) => {
-              console.log('Workout done', result); // keep simple; logging only
-            }}
-          />
+          {completedResult ? (
+            <div className="completion-screen">
+              <div className="completion-icon">🎉</div>
+              <h1 className="completion-title">Grattis!</h1>
+              <p className="completion-subtitle">Ditt pass är slutfört!</p>
+              <div className="completion-stats">
+                <div className="stat-item">
+                  <span className="stat-value">{Math.round((completedResult.durationSeconds || 0) / 60)}</span>
+                  <span className="stat-label">minuter</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-value">{stats?.moments || 0}</span>
+                  <span className="stat-label">moment</span>
+                </div>
+              </div>
+              <button
+                className="completion-button"
+                onClick={() => (window.location.href = '/')}
+              >
+                Tillbaka till startsidan
+              </button>
+            </div>
+          ) : (
+            <WorkoutTimer
+              program={program}
+              exercises={exercises}
+              stats={stats}
+              compact
+              onComplete={(result) => {
+                console.log('Workout done', result);
+                setCompletedResult(result);
+              }}
+            />
+          )}
         </div>
       </div>
     </>

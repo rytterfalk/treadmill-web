@@ -54,8 +54,28 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
     const rbe = Math.max(0, Number(restBetweenExercises) || 0);
     const rbr = Math.max(0, Number(restBetweenRounds) || 0);
     const runRounds = Math.max(1, Number(rounds) || 1);
+
+    // Add initial prep rest (10s) to play the first exercise audio
+    const firstEx = exercises[0];
+    seq.push({
+      type: 'prep',
+      label: 'Gör dig redo',
+      duration: 10,
+      round: 1,
+      notes: '',
+      // Attach the first exercise's audio so it plays during prep
+      nextExerciseAudioUrl: firstEx?.audioUrl || null,
+      nextExerciseLabel: firstEx?.title || 'Första momentet',
+    });
+
     for (let round = 0; round < runRounds; round += 1) {
       exercises.forEach((ex, idx) => {
+        // Find the NEXT exercise to attach its audio to the rest period
+        const isLastInRound = idx === exercises.length - 1;
+        const nextExInRound = exercises[idx + 1];
+        const nextExNextRound = round < runRounds - 1 ? exercises[0] : null;
+        const nextEx = isLastInRound ? nextExNextRound : nextExInRound;
+
         seq.push({
           type: 'exercise',
           label: ex.title || `Moment ${idx + 1}`,
@@ -73,16 +93,23 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
             duration: rbe,
             round: round + 1,
             notes: '',
+            // Audio for the NEXT exercise plays at the start of this rest
+            nextExerciseAudioUrl: nextEx?.audioUrl || null,
+            nextExerciseLabel: nextEx?.title || null,
           });
         }
       });
       if (round < runRounds - 1 && rbr > 0) {
+        // Between-rounds rest - next exercise is first of next round
+        const nextEx = exercises[0];
         seq.push({
           type: 'rest',
           label: 'Vila mellan varv',
           duration: rbr,
           round: round + 1,
           notes: '',
+          nextExerciseAudioUrl: nextEx?.audioUrl || null,
+          nextExerciseLabel: nextEx?.title || null,
         });
       }
     }
@@ -167,46 +194,22 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
     lastAudioPlayedRef.current = null;
   }, [scheduleKey]);
 
-  // Play audio announcement during REST as preparation for next exercise
-  // Special case: First exercise has no rest before it, so play during countdown
+  // Play audio at the START of rest/prep periods (as preparation for next exercise)
   useEffect(() => {
     const step = schedule[stepIndex];
     if (!step) return;
+    if (status !== 'running') return;
 
-    const prev = schedule[stepIndex - 1];
-    const previousWasRest = prev?.type === 'rest';
-    const isFirstExercise = stepIndex === 0 && step.type === 'exercise';
-
-    // Case 1: First exercise - play during countdown
+    // Play audio at the start of rest or prep periods
+    const isRestOrPrep = step.type === 'rest' || step.type === 'prep';
     if (
-      isFirstExercise &&
-      status === 'countdown' &&
-      step.audioUrl &&
+      isRestOrPrep &&
+      step.nextExerciseAudioUrl &&
       lastAudioPlayedRef.current !== stepIndex
     ) {
       try {
         const player = voicePlayerRef.current || new Audio();
-        player.src = step.audioUrl;
-        player.currentTime = 0;
-        voicePlayerRef.current = player;
-        player.play().catch(() => {});
-        lastAudioPlayedRef.current = stepIndex;
-      } catch (err) {
-        // ignore playback errors
-      }
-    }
-
-    // Case 2: After rest - play when transitioning from rest to exercise
-    if (
-      status === 'running' &&
-      previousWasRest &&
-      step.type === 'exercise' &&
-      step.audioUrl &&
-      lastAudioPlayedRef.current !== stepIndex
-    ) {
-      try {
-        const player = voicePlayerRef.current || new Audio();
-        player.src = step.audioUrl;
+        player.src = step.nextExerciseAudioUrl;
         player.currentTime = 0;
         voicePlayerRef.current = player;
         player.play().catch(() => {});
@@ -302,8 +305,8 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
             playTick();
           }
         }
-        if (step.type === 'rest' && nextTime <= 3 && nextTime > 0) {
-          // Rest countdown beeps
+        // Rest/prep countdown beeps (last 3 seconds)
+        if ((step.type === 'rest' || step.type === 'prep') && nextTime <= 3 && nextTime > 0) {
           playTone(520);
         }
 
@@ -319,6 +322,19 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
             });
             return 0;
           }
+
+          const nextStep = schedule[nextIndex];
+          // If next step is exercise, trigger countdown before starting it
+          if (nextStep.type === 'exercise') {
+            playTone(860); // Signal that rest is done
+            setStepIndex(nextIndex);
+            setRemaining(nextStep.duration);
+            setCountdown(3);
+            setStatus('countdown');
+            return nextStep.duration;
+          }
+
+          // Otherwise just move to next step (rest to rest, etc.)
           setStepIndex(nextIndex);
           return schedule[nextIndex].duration;
         }
@@ -343,12 +359,27 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
   function start() {
     if (!schedule.length) return;
     if (status === 'paused' && remaining > 0) {
-      playTone(520);
-      setCountdown(3);
-      setStatus('countdown');
+      // Resume from pause - if we're in exercise, go through countdown
+      const step = schedule[stepIndex];
+      if (step?.type === 'exercise') {
+        playTone(520);
+        setCountdown(3);
+        setStatus('countdown');
+      } else {
+        // For rest/prep, just continue running
+        setStatus('running');
+      }
       return;
     }
-    startCountdown(stepIndex || 0);
+    // First start - begin with prep step (index 0), no countdown needed for prep
+    const firstStep = schedule[0];
+    if (firstStep?.type === 'prep') {
+      setStepIndex(0);
+      setRemaining(firstStep.duration);
+      setStatus('running'); // Start running prep immediately (audio plays via useEffect)
+    } else {
+      startCountdown(0);
+    }
   }
 
   function pause() {
@@ -486,14 +517,24 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
               />
             </svg>
             <div className="ring-center">
-              <p className="eyebrow">{currentStep?.type === 'rest' ? 'Vila' : 'Nu kör vi'}</p>
+              <p className="eyebrow">
+                {currentStep?.type === 'prep'
+                  ? 'Gör dig redo'
+                  : currentStep?.type === 'rest'
+                    ? 'Vila'
+                    : status === 'countdown'
+                      ? 'Nedräkning'
+                      : 'Nu kör vi'}
+              </p>
               <div className="ring-time">
                 {status === 'countdown' ? `${countdown}` : formatSeconds(remaining || 0)}
               </div>
               <div className="ring-sub">
                 {status === 'countdown'
                   ? `${currentStep?.label || ''}`
-                  : `${currentStep?.label || ''} • ${currentStep?.duration || 0}s`}
+                  : currentStep?.type === 'prep' && currentStep?.nextExerciseLabel
+                    ? `Nästa: ${currentStep.nextExerciseLabel}`
+                    : `${currentStep?.label || ''} • ${currentStep?.duration || 0}s`}
               </div>
               <div className="ring-sub muted">Totalt kvar {formatSeconds(totalRemaining)}</div>
             </div>
