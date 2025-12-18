@@ -40,6 +40,60 @@ load_env_file() {
   done <"$env_file"
 }
 
+backup_with_sqlite3() {
+  local src="$1"
+  local dest="$2"
+  sqlite3 "$src" ".timeout 5000" ".backup '$dest'"
+  local check
+  check="$(sqlite3 "$dest" "PRAGMA quick_check;" | head -n 1 || true)"
+  [[ "$check" == "ok" ]]
+}
+
+backup_with_node() {
+  local sevenmin_dir="$1"
+  local src="$2"
+  local dest="$3"
+  node - <<'NODE' "$sevenmin_dir" "$src" "$dest"
+const path = require('path');
+const sevenminDir = process.argv[2];
+const src = process.argv[3];
+const dest = process.argv[4];
+
+process.chdir(sevenminDir);
+
+let Database;
+try {
+  Database = require('better-sqlite3');
+} catch (err) {
+  console.error('[backup] Node fallback failed: better-sqlite3 is not available.');
+  process.exit(2);
+}
+
+const srcDb = new Database(src, { timeout: 5000 });
+srcDb.pragma('foreign_keys = ON');
+
+srcDb
+  .backup(dest)
+  .then(() => {
+    srcDb.close();
+    const verifyDb = new Database(dest, { readonly: true, timeout: 5000 });
+    const rows = verifyDb.prepare('PRAGMA quick_check;').all();
+    verifyDb.close();
+    const ok = rows.every((r) => Object.values(r)[0] === 'ok');
+    if (!ok) {
+      console.error('[backup] quick_check failed');
+      process.exit(1);
+    }
+    process.exit(0);
+  })
+  .catch((err) => {
+    try { srcDb.close(); } catch (_) {}
+    console.error('[backup] Node backup failed:', err && err.message ? err.message : String(err));
+    process.exit(1);
+  });
+NODE
+}
+
 KIND=""
 BACKUP_DIR="${BACKUP_DIR:-}"
 DB_PATH="${DB_PATH:-}"
@@ -119,19 +173,25 @@ if [[ ! -f "$DB_PATH" ]]; then
   echo "[backup] DB not found: $DB_PATH"
   exit 1
 fi
-if ! need_cmd sqlite3; then
-  echo "[backup] sqlite3 not installed; cannot create SQLite backup."
-  exit 1
-fi
 
 echo "[backup] Writing SQLite backup ($KIND) -> $out_db"
-sqlite3 "$DB_PATH" ".timeout 5000" ".backup '$tmp_db'"
-
-check="$(sqlite3 "$tmp_db" "PRAGMA quick_check;" | head -n 1 || true)"
-if [[ "$check" != "ok" ]]; then
-  echo "[backup] quick_check failed: $check"
-  rm -f "$tmp_db"
-  exit 1
+if need_cmd sqlite3; then
+  if ! backup_with_sqlite3 "$DB_PATH" "$tmp_db"; then
+    echo "[backup] sqlite3 quick_check failed"
+    rm -f "$tmp_db"
+    exit 1
+  fi
+else
+  echo "[backup] sqlite3 not installed; trying Node fallback via better-sqlite3"
+  if ! need_cmd node; then
+    echo "[backup] node not installed; cannot create SQLite backup."
+    exit 1
+  fi
+  if ! backup_with_node "$SEVENMIN" "$DB_PATH" "$tmp_db"; then
+    echo "[backup] Node fallback failed; cannot create SQLite backup."
+    rm -f "$tmp_db"
+    exit 1
+  fi
 fi
 
 mv -f "$tmp_db" "$out_db"

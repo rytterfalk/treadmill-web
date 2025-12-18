@@ -171,6 +171,13 @@ function App() {
   }, [user, view, calendarRange.from, calendarRange.to]);
 
   useEffect(() => {
+    if (!user) return;
+    if (view === 'programs' || view === 'builder' || view === 'progressive-wizard') {
+      loadProgressivePrograms();
+    }
+  }, [user, view]);
+
+  useEffect(() => {
     if (user && view === 'calendar' && selectedDate) {
       loadDaySessions(selectedDate);
     }
@@ -349,6 +356,16 @@ function App() {
         setSelectedProgramId(next?.id || null);
       }
       setStatus('Pass borttaget');
+    } catch (err) {
+      setStatus(err.message);
+    }
+  }
+
+  async function handleDeactivateProgressiveProgram(id) {
+    try {
+      await api(`/api/progressive-programs/${id}/deactivate`, { method: 'POST' });
+      setProgressivePrograms((prev) => prev.map((p) => (p.id === id ? { ...p, active: 0 } : p)));
+      setStatus('Program avaktiverat');
     } catch (err) {
       setStatus(err.message);
     }
@@ -865,6 +882,66 @@ function App() {
               })}
               {!programs.length && <p className="empty-state">Du har inga pass än. Skapa ett!</p>}
             </div>
+
+            <hr className="panel-divider" />
+
+            <div className="panel-header" style={{ marginTop: '0.75rem' }}>
+              <div>
+                <p className="eyebrow">Progressivt</p>
+                <h3>Program</h3>
+              </div>
+              {progressivePrograms.length ? (
+                <span className="badge">{progressivePrograms.length} st</span>
+              ) : null}
+            </div>
+
+            {progressiveStatus === 'loading' ? (
+              <p className="empty-state">Laddar program…</p>
+            ) : progressivePrograms.length ? (
+              <div className="program-list">
+                {progressivePrograms.map((p) => (
+                  <div key={p.id} className="program-card">
+                    <div className="program-content">
+                      <div className="program-title">
+                        {p.exercise_key} • {p.method}
+                      </div>
+                      <div className="program-meta">Max: {p.test_max}</div>
+                      <div className="program-meta subtle">{p.active ? 'Aktiv' : 'Inaktiv'}</div>
+                    </div>
+                    <div className="card-actions">
+                      <button
+                        type="button"
+                        className="ghost tiny"
+                        onClick={async () => {
+                          setSelectedProgressiveProgramId(p.id);
+                          await loadProgressiveProgramDays(p.id);
+                          setView('calendar');
+                        }}
+                      >
+                        📈 Visa
+                      </button>
+                      {p.active ? (
+                        <button
+                          type="button"
+                          className="ghost tiny danger"
+                          onClick={() => {
+                            if (window.confirm('Avaktivera detta program?')) {
+                              handleDeactivateProgressiveProgram(p.id);
+                            }
+                          }}
+                        >
+                          ⏹ Avbryt
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="empty-state">
+                Inga progressiva program ännu. Klicka “+ Skapa nytt pass” och välj “Progressivt program”.
+              </p>
+            )}
           </section>
 
           {view === 'builder' && (
@@ -883,6 +960,7 @@ function App() {
                 onCreated={() => {
                   setView('dashboard');
                   loadTodayThing();
+                  loadProgressivePrograms();
                   setStatus('Program skapat!');
                 }}
               />

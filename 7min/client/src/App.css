@@ -220,6 +220,13 @@
   min-width: 160px;
 }
 
+.panel-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1rem 0 0.75rem;
+  opacity: 0.7;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

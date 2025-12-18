@@ -19,6 +19,8 @@ Options:
   --force-install     Always run npm install for 7min and client
   --force-migrate     Always run migrations
   --no-backup         Disable pre-pull backup (default: enabled when --pull is used)
+  --healthcheck URL   Ping URL after restart (default: https://localhost/api/health)
+  --no-healthcheck    Skip health check (default: enabled when --restart is used)
   -h, --help          Show this help
 
 Examples:
@@ -115,6 +117,8 @@ RESTART=0
 FORCE_INSTALL=0
 FORCE_MIGRATE=0
 PRE_PULL_BACKUP=1
+HEALTHCHECK_ENABLED=1
+HEALTHCHECK_URL=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -124,6 +128,8 @@ while [[ $# -gt 0 ]]; do
     --force-install) FORCE_INSTALL=1; shift ;;
     --force-migrate) FORCE_MIGRATE=1; shift ;;
     --no-backup) PRE_PULL_BACKUP=0; shift ;;
+    --healthcheck) HEALTHCHECK_URL="${2:-}"; shift 2 ;;
+    --no-healthcheck) HEALTHCHECK_ENABLED=0; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown arg: $1"; usage; exit 2 ;;
   esac
@@ -186,6 +192,32 @@ if [[ "$RESTART" == "1" ]]; then
   sudo systemctl reload caddy
   echo "[deploy] restart 7min.service"
   sudo systemctl restart 7min.service
+
+  if [[ "$HEALTHCHECK_ENABLED" == "1" ]]; then
+    if [[ -z "$HEALTHCHECK_URL" ]]; then
+      HEALTHCHECK_URL="https://localhost/api/health"
+    fi
+    echo "[deploy] healthcheck: $HEALTHCHECK_URL"
+    ok=0
+    for i in {1..20}; do
+      if need_cmd curl; then
+        if curl -fsS --max-time 3 "$HEALTHCHECK_URL" >/dev/null 2>&1; then ok=1; break; fi
+      elif need_cmd wget; then
+        if wget -q -T 3 -O /dev/null "$HEALTHCHECK_URL" >/dev/null 2>&1; then ok=1; break; fi
+      else
+        echo "[deploy] curl/wget not found; skipping healthcheck."
+        ok=1
+        break
+      fi
+      sleep 1
+    done
+    if [[ "$ok" != "1" ]]; then
+      echo "[deploy] healthcheck FAILED (service may be down)."
+      echo "[deploy] Tip: sudo journalctl -u 7min.service -n 200 --no-pager"
+      exit 1
+    fi
+    echo "[deploy] healthcheck OK"
+  fi
 fi
 
 echo "[deploy] done"
