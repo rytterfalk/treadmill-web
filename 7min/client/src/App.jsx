@@ -5,11 +5,13 @@ import NavBar from './components/NavBar';
 import ProgramEditor from './components/ProgramEditor';
 import WorkoutTimer from './components/WorkoutTimer';
 import WorkoutScreen from './components/WorkoutScreen';
+import ProgramDayScreen from './components/ProgramDayScreen';
 import EquipmentSelector from './components/EquipmentSelector';
 import SessionList from './components/SessionList';
 import WeekBars from './components/WeekBars';
 import WeekProgress from './components/WeekProgress';
 import CalendarGrid from './components/CalendarGrid';
+import ProgressiveProgramWizard from './components/ProgressiveProgramWizard';
 
 const defaultExercises = [
   { title: 'Jumping Jacks', durationSeconds: 30, restSeconds: 5, notes: '' },
@@ -34,14 +36,21 @@ async function api(path, options = {}) {
 }
 
 function App() {
+  const programDayMatch = useMemo(() => {
+    const path = window.location.pathname;
+    const match = path.match(/^\/workout\/program-day\/([^/]+)/);
+    return match ? match[1] : null;
+  }, []);
+  if (programDayMatch) return <ProgramDayScreen programDayId={programDayMatch} />;
+
   const workoutMatch = useMemo(() => {
     const path = window.location.pathname;
     const match = path.match(/^\/(workout|play)\/([^/]+)/);
-    return match ? match[2] : null;
+    if (!match) return null;
+    if (match[2] === 'program-day') return null;
+    return match[2];
   }, []);
-  if (workoutMatch) {
-    return <WorkoutScreen programId={workoutMatch} />;
-  }
+  if (workoutMatch) return <WorkoutScreen programId={workoutMatch} />;
 
   const [user, setUser] = useState(null);
   const [allEquipment, setAllEquipment] = useState([]);
@@ -82,6 +91,9 @@ function App() {
   });
   const [showQuickSelect, setShowQuickSelect] = useState(false);
   const [editingProgram, setEditingProgram] = useState(null); // For editing existing programs
+  const [showCreateTypePicker, setShowCreateTypePicker] = useState(false);
+  const [todayThing, setTodayThing] = useState(null);
+  const [todayThingStatus, setTodayThingStatus] = useState('idle');
 
   // Helper to format duration
   function formatDuration(seconds) {
@@ -129,6 +141,12 @@ function App() {
       loadSessions();
     }
   }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    if (view !== 'dashboard') return;
+    loadTodayThing();
+  }, [user, view]);
 
   useEffect(() => {
     if (user && view === 'calendar') {
@@ -435,6 +453,18 @@ function App() {
     }
   }
 
+  async function loadTodayThing() {
+    setTodayThingStatus('loading');
+    try {
+      const data = await api('/api/today');
+      setTodayThing(data);
+      setTodayThingStatus('ready');
+    } catch (err) {
+      setTodayThing({ kind: 'error', error: err.message });
+      setTodayThingStatus('error');
+    }
+  }
+
   if (!user) {
     return (
       <div className="auth-hero">
@@ -579,7 +609,7 @@ function App() {
   }
 
   // PROGRAMS VIEW - "Passen"
-  if (view === 'programs' || view === 'builder') {
+  if (view === 'programs' || view === 'builder' || view === 'progressive-wizard') {
     return (
       <div className="page">
         <NavBar user={user} view={view} onChangeView={setView} onLogout={handleLogout} />
@@ -592,8 +622,48 @@ function App() {
                 <p className="eyebrow">Alla pass</p>
                 <h2>Passen</h2>
               </div>
-              <button onClick={() => { setEditingProgram(null); setView('builder'); }}>+ Skapa nytt pass</button>
+              <button
+                onClick={() => {
+                  setEditingProgram(null);
+                  setShowCreateTypePicker((v) => !v);
+                }}
+              >
+                + Skapa nytt pass
+              </button>
             </div>
+            {showCreateTypePicker && (
+              <div className="create-type-picker">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateTypePicker(false);
+                    setView('builder');
+                  }}
+                >
+                  HIIT (befintligt)
+                </button>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => {
+                    setShowCreateTypePicker(false);
+                    setStatus('Styrka (v1) kommer snart.');
+                  }}
+                >
+                  Styrka (stub)
+                </button>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => {
+                    setShowCreateTypePicker(false);
+                    setView('progressive-wizard');
+                  }}
+                >
+                  Progressivt program
+                </button>
+              </div>
+            )}
             <div className="program-list">
               {sortedPrograms.map((program) => {
                 const isFav = favorites.includes(program.id);
@@ -646,6 +716,19 @@ function App() {
               />
             </section>
           )}
+
+          {view === 'progressive-wizard' && (
+            <section className="panel">
+              <ProgressiveProgramWizard
+                onCancel={() => setView('programs')}
+                onCreated={() => {
+                  setView('dashboard');
+                  loadTodayThing();
+                  setStatus('Program skapat!');
+                }}
+              />
+            </section>
+          )}
         </div>
       </div>
     );
@@ -673,6 +756,44 @@ function App() {
       {status && <div className="status floating">{status}</div>}
 
       <div className="start-view">
+        {todayThing?.kind === 'program_day' ? (
+          <section className="panel today-thing-panel">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Dagens grej</p>
+                <h3>
+                  {todayThing.program?.exercise_key} • {todayThing.program?.method}
+                </h3>
+              </div>
+              <span className="badge">{todayThing.program_day?.day_type}</span>
+            </div>
+            {todayThing.program_day?.day_type === 'rest' ? (
+              <p className="empty-state">Vilodag. Kom tillbaka nästa träningsdag.</p>
+            ) : todayThing.program_day?.day_type === 'workout' ? (
+              <div className="actions-row">
+                <button
+                  onClick={() =>
+                    (window.location.href = `/workout/program-day/${todayThing.program_day.id}`)
+                  }
+                >
+                  Starta
+                </button>
+              </div>
+            ) : (
+              <p className="empty-state">Testdag (UI kommer i M6).</p>
+            )}
+          </section>
+        ) : todayThingStatus === 'loading' ? (
+          <section className="panel today-thing-panel">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Dagens grej</p>
+                <h3>Laddar…</h3>
+              </div>
+            </div>
+          </section>
+        ) : null}
+
         <section className="panel hero start-panel">
           <div className="panel-header">
             <div>

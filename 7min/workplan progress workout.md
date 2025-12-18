@@ -59,7 +59,7 @@ För att undvika att bryta befintlig funktionalitet använder vi **separata tabe
 ### progressive_programs
 Progressivt program för en user + övning + metod.
 - id TEXT PRIMARY KEY
-- user_id TEXT NOT NULL
+- user_id INTEGER NOT NULL
 - exercise_key TEXT NOT NULL           -- ex: "burpees" | "pushups" | "pullups"
 - method TEXT NOT NULL                 -- "submax" | "ladder"
 - target_value INTEGER NULL            -- valfritt framtida mål, ex 50
@@ -337,7 +337,7 @@ Visa:
 - UI: val av HIIT / Styrka / Progressivt
 - Styrka kan vara stub v1 (skapar placeholder)
 
-## M2 — DB: programs + program_days + (ev) program_day_id i sessions
+## M2 — DB: progressive_programs + progressive_program_days + (ev) program_day_id i sessions
 - migrations
 - minimal seed/README
 OBS: För att undvika namn-krock med befintliga HIIT-tabeller använder vi `progressive_programs` + `progressive_program_days` istället för `programs` + `program_days`.

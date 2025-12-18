@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const https = require('https');
 const { migrate, db, getUserById } = require('./db');
 const { router: calendarRouter, allowedTypes: calendarAllowedTypes } = require('./routes/calendar');
+const { router: progressiveRouter } = require('./routes/progressive');
 const {
   authRequired,
   createToken,
@@ -432,6 +433,7 @@ app.get('/api/sessions/:id', authRequired, (req, res) => {
 });
 
 app.use('/api/calendar', calendarRouter);
+app.use('/api', progressiveRouter);
 
 // Fallback för SPA - servera index.html för alla andra GET:ar som inte är /api
 app.get(/^(?!\/api).*/, (req, res) => {

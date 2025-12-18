@@ -205,6 +205,78 @@
 }
 
 /* ═══════════════════════════════════════════════════════════
+   PROGRESSIVE PROGRAMS (Wizard + Today card)
+   ═══════════════════════════════════════════════════════════ */
+
+.create-type-picker {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin: 0.75rem 0 0.25rem;
+}
+
+.create-type-picker button {
+  flex: 1;
+  min-width: 160px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.9rem;
+  margin-top: 0.75rem;
+}
+
+.helper-text {
+  margin-top: 0.4rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.days-picker {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.days-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.days-buttons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+}
+
+.day-btn {
+  min-width: 64px;
+  background: transparent;
+  border: 2px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.day-btn.active {
+  background: rgba(247, 199, 43, 0.12);
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.actions-row {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.today-thing-panel {
+  margin-bottom: 1rem;
+}
+
+/* ═══════════════════════════════════════════════════════════
    TIMER - Fullscreen overlay when active (DARK THEME)
    ═══════════════════════════════════════════════════════════ */
 
