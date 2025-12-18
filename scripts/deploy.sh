@@ -18,6 +18,7 @@ Options:
   --no-restart        Do not restart services (default)
   --force-install     Always run npm install for 7min and client
   --force-migrate     Always run migrations
+  --no-backup         Disable pre-pull backup (default: enabled when --pull is used)
   -h, --help          Show this help
 
 Examples:
@@ -32,6 +33,18 @@ need_cmd() {
 
 repo_root() {
   git rev-parse --show-toplevel 2>/dev/null
+}
+
+load_env_file() {
+  local env_file="$1"
+  [[ -f "$env_file" ]] || return 0
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    if [[ "$line" =~ ^(DB_PATH|UPLOAD_DIR|BACKUP_DIR)= ]]; then
+      export "$line"
+    fi
+  done <"$env_file"
 }
 
 ensure_npm_install() {
@@ -101,6 +114,7 @@ PULL=0
 RESTART=0
 FORCE_INSTALL=0
 FORCE_MIGRATE=0
+PRE_PULL_BACKUP=1
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -109,6 +123,7 @@ while [[ $# -gt 0 ]]; do
     --no-restart) RESTART=0; shift ;;
     --force-install) FORCE_INSTALL=1; shift ;;
     --force-migrate) FORCE_MIGRATE=1; shift ;;
+    --no-backup) PRE_PULL_BACKUP=0; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown arg: $1"; usage; exit 2 ;;
   esac
@@ -123,9 +138,21 @@ fi
 SEVENMIN="$ROOT/7min"
 CLIENT="$SEVENMIN/client"
 MIGRATIONS_DIR="$SEVENMIN/server/db/migrations"
+load_env_file "$SEVENMIN/.env"
 DB_PATH="${DB_PATH:-$SEVENMIN/server/data/app.db}"
 
 if [[ "$PULL" == "1" ]]; then
+  if [[ "$PRE_PULL_BACKUP" == "1" ]]; then
+    if [[ -f "$ROOT/scripts/backup.sh" ]]; then
+      echo "[deploy] backup (pre-pull)"
+      bash "$ROOT/scripts/backup.sh" --kind pre-pull || {
+        echo "[deploy] backup failed; aborting deploy (use --no-backup to skip)."
+        exit 1
+      }
+    else
+      echo "[deploy] backup script missing; skipping backup"
+    fi
+  fi
   echo "[deploy] git pull"
   (cd "$ROOT" && git pull)
 fi
@@ -162,4 +189,3 @@ if [[ "$RESTART" == "1" ]]; then
 fi
 
 echo "[deploy] done"
-

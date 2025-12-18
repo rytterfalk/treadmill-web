@@ -4,4 +4,5 @@ client/dist/
 venv/
 *.db
 *.log
+.env
 .DS_Store
