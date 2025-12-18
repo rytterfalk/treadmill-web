@@ -519,6 +519,29 @@ function App() {
     return d.toISOString().slice(0, 10);
   }
 
+  const selectedProgressiveProgram = useMemo(() => {
+    if (!selectedProgressiveProgramId) return null;
+    return progressivePrograms.find((p) => p.id === selectedProgressiveProgramId) || null;
+  }, [progressivePrograms, selectedProgressiveProgramId]);
+
+  const nextTestDate = useMemo(() => {
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const next = progressiveDays.find(
+      (d) => d.day_type === 'test' && d.status === 'planned' && d.date >= todayIso
+    );
+    return next?.date || null;
+  }, [progressiveDays]);
+
+  const weekRows = useMemo(() => {
+    const today = new Date();
+    const monday = startOfWeekIso(today);
+    const byDate = new Map(progressiveDays.map((d) => [d.date, d]));
+    return Array.from({ length: 7 }, (_, i) => {
+      const date = addDaysIso(monday, i);
+      return { date, day: byDate.get(date) || null };
+    });
+  }, [progressiveDays]);
+
   if (!user) {
     return (
       <div className="auth-hero">
@@ -580,29 +603,6 @@ function App() {
   }
 
   const equipmentSlugs = userEquipment.map((e) => e.slug);
-
-  const selectedProgressiveProgram = useMemo(() => {
-    if (!selectedProgressiveProgramId) return null;
-    return progressivePrograms.find((p) => p.id === selectedProgressiveProgramId) || null;
-  }, [progressivePrograms, selectedProgressiveProgramId]);
-
-  const nextTestDate = useMemo(() => {
-    const todayIso = new Date().toISOString().slice(0, 10);
-    const next = progressiveDays.find(
-      (d) => d.day_type === 'test' && d.status === 'planned' && d.date >= todayIso
-    );
-    return next?.date || null;
-  }, [progressiveDays]);
-
-  const weekRows = useMemo(() => {
-    const today = new Date();
-    const monday = startOfWeekIso(today);
-    const byDate = new Map(progressiveDays.map((d) => [d.date, d]));
-    return Array.from({ length: 7 }, (_, i) => {
-      const date = addDaysIso(monday, i);
-      return { date, day: byDate.get(date) || null };
-    });
-  }, [progressiveDays]);
 
   if (view === 'calendar') {
     // Filter sessions by selected day if a day is selected
