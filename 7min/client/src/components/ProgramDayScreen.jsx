@@ -17,6 +17,7 @@ function ProgramDayScreen({ programDayId }) {
   const [todayData, setTodayData] = useState(null);
   const [actuals, setActuals] = useState({});
   const [saving, setSaving] = useState(false);
+  const [testMax, setTestMax] = useState(0);
 
   useEffect(() => {
     const body = document.body;
@@ -93,6 +94,7 @@ function ProgramDayScreen({ programDayId }) {
 
   const plan = todayData?.program_day?.plan || null;
   const program = todayData?.program || null;
+  const dayType = todayData?.program_day?.day_type || null;
 
   const entries = useMemo(() => {
     if (!plan) return [];
@@ -125,6 +127,12 @@ function ProgramDayScreen({ programDayId }) {
     });
   }, [entries]);
 
+  useEffect(() => {
+    if (dayType !== 'test') return;
+    const baseline = Number(program?.test_max) || 0;
+    setTestMax((prev) => (prev ? prev : baseline || 1));
+  }, [dayType, program]);
+
   async function handleComplete() {
     if (!plan) return;
     setSaving(true);
@@ -150,6 +158,26 @@ function ProgramDayScreen({ programDayId }) {
         body: JSON.stringify({ result_json }),
       });
 
+      window.location.href = '/';
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleTestSave() {
+    setSaving(true);
+    setError('');
+    try {
+      const n = Number(testMax);
+      if (!Number.isFinite(n) || n < 1) {
+        throw new Error('Max måste vara ett heltal >= 1');
+      }
+      await api(`/api/program-days/${programDayId}/test`, {
+        method: 'POST',
+        body: JSON.stringify({ test_max: Math.round(n) }),
+      });
       window.location.href = '/';
     } catch (err) {
       setError(err.message);
@@ -228,35 +256,62 @@ function ProgramDayScreen({ programDayId }) {
         </div>
         <div className="workout-content">
           {error ? <div className="status">{error}</div> : null}
-          <div className="workout-card">
-            {entries.map((e) => (
-              <div key={e.key} className="workout-row">
-                <div>
-                  <div>{e.label}</div>
-                  <div className="muted">Target: {e.target}</div>
+          {dayType === 'test' ? (
+            <>
+              <div className="workout-card">
+                <div className="workout-row">
+                  <div>
+                    <div>Max-test (reps)</div>
+                    <div className="muted">Spara ditt nya max. Programmet re-basas direkt.</div>
+                  </div>
+                  <input
+                    type="number"
+                    min={1}
+                    value={testMax || ''}
+                    onChange={(ev) => setTestMax(ev.target.value)}
+                    disabled={saving}
+                  />
                 </div>
-                <input
-                  type="number"
-                  min={0}
-                  value={actuals[e.key] ?? ''}
-                  onChange={(ev) =>
-                    setActuals((prev) => ({ ...prev, [e.key]: ev.target.value }))
-                  }
-                  disabled={saving}
-                />
               </div>
-            ))}
-          </div>
+              <div className="actions">
+                <button className="primary" onClick={handleTestSave} disabled={saving}>
+                  {saving ? 'Sparar…' : 'Spara test'}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="workout-card">
+                {entries.map((e) => (
+                  <div key={e.key} className="workout-row">
+                    <div>
+                      <div>{e.label}</div>
+                      <div className="muted">Target: {e.target}</div>
+                    </div>
+                    <input
+                      type="number"
+                      min={0}
+                      value={actuals[e.key] ?? ''}
+                      onChange={(ev) =>
+                        setActuals((prev) => ({ ...prev, [e.key]: ev.target.value }))
+                      }
+                      disabled={saving}
+                    />
+                  </div>
+                ))}
+              </div>
 
-          <div className="actions">
-            <button
-              className="primary"
-              onClick={handleComplete}
-              disabled={saving || entries.length === 0}
-            >
-              {saving ? 'Sparar…' : 'Spara & Klar'}
-            </button>
-          </div>
+              <div className="actions">
+                <button
+                  className="primary"
+                  onClick={handleComplete}
+                  disabled={saving || entries.length === 0}
+                >
+                  {saving ? 'Sparar…' : 'Spara & Klar'}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </>
@@ -264,4 +319,3 @@ function ProgramDayScreen({ programDayId }) {
 }
 
 export default ProgramDayScreen;
-

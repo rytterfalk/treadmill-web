@@ -139,6 +139,47 @@ function generateProgramDays({
   return days;
 }
 
+function generateProgramDaysFromIsoDate({
+  programId,
+  exerciseKey,
+  preferredDays,
+  testEveryWeeks = 4,
+  state,
+  startIsoDate, // YYYY-MM-DD
+}) {
+  const startDate = new Date(`${startIsoDate}T00:00:00.000Z`);
+  if (Number.isNaN(startDate.getTime())) {
+    throw new Error('Ogiltigt startdatum');
+  }
+  return generateProgramDays({
+    programId,
+    exerciseKey,
+    preferredDays,
+    testEveryWeeks,
+    state,
+    startDate,
+  });
+}
+
+function insertProgramDays(days) {
+  const insertDay = db.prepare(
+    `INSERT OR IGNORE INTO progressive_program_days
+      (id, program_id, date, day_type, plan_json, status, result_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  );
+  days.forEach((d) => {
+    insertDay.run(
+      d.id,
+      d.program_id,
+      d.date,
+      d.day_type,
+      d.plan_json,
+      d.status,
+      d.result_json
+    );
+  });
+}
+
 function normalizeProgramRow(row) {
   if (!row) return null;
   return {
@@ -229,22 +270,7 @@ router.post('/progressive-programs', authRequired, (req, res) => {
       JSON.stringify(state)
     );
 
-    const insertDay = db.prepare(
-      `INSERT INTO progressive_program_days
-        (id, program_id, date, day_type, plan_json, status, result_json)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    );
-    days.forEach((d) => {
-      insertDay.run(
-        d.id,
-        d.program_id,
-        d.date,
-        d.day_type,
-        d.plan_json,
-        d.status,
-        d.result_json
-      );
-    });
+    insertProgramDays(days);
   });
 
   try {
@@ -511,6 +537,94 @@ router.post('/program-days/:id/complete', authRequired, (req, res) => {
     tx();
   } catch (err) {
     return res.status(400).json({ error: err.message || 'Kunde inte spara resultat' });
+  }
+
+  res.json({ ok: true });
+});
+
+router.post('/program-days/:id/test', authRequired, (req, res) => {
+  const testMax = clampInt(req.body?.test_max, 1, 1000);
+  if (!testMax) return res.status(400).json({ error: 'test_max måste vara ett heltal >= 1' });
+
+  const row = db
+    .prepare(
+      `SELECT d.id AS day_id, d.program_id, d.date, d.day_type, d.status,
+              p.id AS program_id2, p.exercise_key, p.method, p.test_max, p.schedule_json, p.state_json, p.active
+       FROM progressive_program_days d
+       JOIN progressive_programs p ON p.id = d.program_id
+       WHERE d.id = ? AND p.user_id = ?`
+    )
+    .get(req.params.id, req.user.id);
+
+  if (!row) return res.status(404).json({ error: 'Programdagen finns inte' });
+  if (row.status !== 'planned') return res.status(400).json({ error: 'Programdagen är redan hanterad' });
+  if (row.day_type !== 'test') return res.status(400).json({ error: 'Detta är inte en testdag' });
+
+  const schedule = safeJsonParse(row.schedule_json) || {};
+  const preferredDays = Array.isArray(schedule.preferred_days) ? schedule.preferred_days : [];
+  const testEveryWeeks = clampInt(schedule.test_every_weeks, 1, 12) || 4;
+
+  const nextState = initialStateFromTestMax({
+    method: row.method,
+    exerciseKey: row.exercise_key,
+    testMax,
+  });
+
+  const nowIso = new Date().toISOString();
+  const result = { test_max: testMax, completed_at: nowIso };
+
+  const tx = db.transaction(() => {
+    db.prepare(
+      `UPDATE progressive_program_days
+       SET status = 'done', result_json = ?
+       WHERE id = ?`
+    ).run(JSON.stringify(result), row.day_id);
+
+    db.prepare(
+      `UPDATE progressive_programs
+       SET test_max = ?, state_json = ?
+       WHERE id = ?`
+    ).run(testMax, JSON.stringify(nextState), row.program_id2);
+
+    const nextStart = new Date(`${row.date}T00:00:00.000Z`);
+    nextStart.setUTCDate(nextStart.getUTCDate() + 1);
+    const nextStartIso = isoDateUTC(nextStart);
+    const newDays = generateProgramDaysFromIsoDate({
+      programId: row.program_id2,
+      exerciseKey: row.exercise_key,
+      preferredDays,
+      testEveryWeeks,
+      state: nextState,
+      startIsoDate: nextStartIso,
+    });
+    insertProgramDays(newDays);
+
+    const nextWorkout = db
+      .prepare(
+        `SELECT id
+         FROM progressive_program_days
+         WHERE program_id = ?
+           AND date(date) > date(?)
+           AND day_type = 'workout'
+           AND status = 'planned'
+         ORDER BY date ASC
+         LIMIT 1`
+      )
+      .get(row.program_id2, row.date);
+
+    if (nextWorkout?.id) {
+      const nextPlan = planForWorkout(nextState);
+      db.prepare(`UPDATE progressive_program_days SET plan_json = ? WHERE id = ?`).run(
+        nextPlan ? JSON.stringify(nextPlan) : null,
+        nextWorkout.id
+      );
+    }
+  });
+
+  try {
+    tx();
+  } catch (err) {
+    return res.status(400).json({ error: err.message || 'Kunde inte spara test' });
   }
 
   res.json({ ok: true });

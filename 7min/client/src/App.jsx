@@ -756,43 +756,60 @@ function App() {
       {status && <div className="status floating">{status}</div>}
 
       <div className="start-view">
-        {todayThing?.kind === 'program_day' ? (
-          <section className="panel today-thing-panel">
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">Dagens grej</p>
-                <h3>
-                  {todayThing.program?.exercise_key} • {todayThing.program?.method}
-                </h3>
-              </div>
+        <section className="panel today-thing-panel">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Dagens grej</p>
+              <h3>
+                {todayThing?.kind === 'program_day'
+                  ? `${todayThing.program?.exercise_key} • ${todayThing.program?.method}`
+                  : todayThingStatus === 'loading'
+                    ? 'Laddar…'
+                    : 'Inget planerat'}
+              </h3>
+            </div>
+            {todayThing?.kind === 'program_day' ? (
               <span className="badge">{todayThing.program_day?.day_type}</span>
+            ) : null}
+          </div>
+
+          {todayThing?.kind === 'program_day' ? (
+            <>
+              {todayThing.program_day?.day_type === 'rest' ? (
+                <p className="empty-state">Vilodag. Kom tillbaka nästa träningsdag.</p>
+              ) : todayThing.program_day?.day_type === 'workout' ? (
+                <div className="actions-row">
+                  <button
+                    onClick={() =>
+                      (window.location.href = `/workout/program-day/${todayThing.program_day.id}`)
+                    }
+                  >
+                    Starta
+                  </button>
+                </div>
+              ) : (
+                <div className="actions-row">
+                  <button
+                    className="ghost"
+                    onClick={() =>
+                      (window.location.href = `/workout/program-day/${todayThing.program_day.id}`)
+                    }
+                  >
+                    Starta test
+                  </button>
+                </div>
+              )}
+            </>
+          ) : todayThingStatus === 'error' ? (
+            <p className="empty-state">Kunde inte ladda dagens plan.</p>
+          ) : (
+            <div className="actions-row">
+              <button className="ghost" onClick={() => setView('programs')}>
+                Skapa progressivt program →
+              </button>
             </div>
-            {todayThing.program_day?.day_type === 'rest' ? (
-              <p className="empty-state">Vilodag. Kom tillbaka nästa träningsdag.</p>
-            ) : todayThing.program_day?.day_type === 'workout' ? (
-              <div className="actions-row">
-                <button
-                  onClick={() =>
-                    (window.location.href = `/workout/program-day/${todayThing.program_day.id}`)
-                  }
-                >
-                  Starta
-                </button>
-              </div>
-            ) : (
-              <p className="empty-state">Testdag (UI kommer i M6).</p>
-            )}
-          </section>
-        ) : todayThingStatus === 'loading' ? (
-          <section className="panel today-thing-panel">
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">Dagens grej</p>
-                <h3>Laddar…</h3>
-              </div>
-            </div>
-          </section>
-        ) : null}
+          )}
+        </section>
 
         <section className="panel hero start-panel">
           <div className="panel-header">

@@ -28,6 +28,9 @@ Detta dokument beskriver status på arbetet enligt `7min/workplan progress worko
   - `POST /api/program-days/:id/complete` (sparar resultat + uppdaterar state + uppdaterar nästa workout plan)
   - `POST /api/program-days/:id/skip` (markerar skipped, uppdaterar inte progression)
 
+### M6 — Test day var 4:e vecka
+- Backend: `POST /api/program-days/:id/test` (sparar nytt max, re-basar state, skapar nästa 4 veckor vid behov)
+- UI: `7min/client/src/components/ProgramDayScreen.jsx` (test-input när `day_type === "test"`)
+
 ## Näst
-- M6 — Test day var 4:e vecka (UI + re-baseline)
 - M7 — Progress-sida: plan vs done + test-info

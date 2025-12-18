@@ -261,6 +261,17 @@ Servern ska:
 - uppdatera programs.state_json (progression)
 - uppdatera kommande workout-day plan_json (nästa pass) baserat på nya state
 
+### POST /api/program-days/:id/test
+Spara nytt max-test och markera test-dagen som done.
+Body:
+{ "test_max": 14 }
+
+Servern ska:
+- status="done" + spara result_json (inkl completed_at)
+- uppdatera program.test_max
+- re-baseline state_json (work_reps/top räknas om)
+- skapa kommande 4 veckors dagar om de saknas
+
 ### POST /api/program-days/:id/skip
 status="skipped" (valfritt v1)
 
