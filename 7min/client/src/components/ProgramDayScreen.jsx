@@ -18,6 +18,7 @@ function ProgramDayScreen({ programDayId }) {
   const [actuals, setActuals] = useState({});
   const [saving, setSaving] = useState(false);
   const [testMax, setTestMax] = useState(0);
+  const [durationMin, setDurationMin] = useState(10);
 
   useEffect(() => {
     const body = document.body;
@@ -153,9 +154,13 @@ function ProgramDayScreen({ programDayId }) {
         throw new Error('Okänd plan');
       }
 
+      const minutes = Number(durationMin);
+      const duration_sec =
+        Number.isFinite(minutes) && minutes > 0 ? Math.round(minutes * 60) : null;
+
       await api(`/api/program-days/${programDayId}/complete`, {
         method: 'POST',
-        body: JSON.stringify({ result_json }),
+        body: JSON.stringify({ result_json, duration_sec }),
       });
 
       window.location.href = '/';
@@ -282,6 +287,19 @@ function ProgramDayScreen({ programDayId }) {
           ) : (
             <>
               <div className="workout-card">
+                <div className="workout-row">
+                  <div>
+                    <div>Tid (min)</div>
+                    <div className="muted">Används för poäng i kalendern.</div>
+                  </div>
+                  <input
+                    type="number"
+                    min={1}
+                    value={durationMin ?? ''}
+                    onChange={(ev) => setDurationMin(ev.target.value)}
+                    disabled={saving}
+                  />
+                </div>
                 {entries.map((e) => (
                   <div key={e.key} className="workout-row">
                     <div>

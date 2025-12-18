@@ -660,6 +660,56 @@ function App() {
           <section className="panel">
             <div className="panel-header">
               <div>
+                <p className="eyebrow">Denna vecka</p>
+                <h2>Din träning</h2>
+              </div>
+              <span className="badge">{pointsCap}p/dag</span>
+            </div>
+            <WeekProgress
+              days={weekBarDays}
+              cap={pointsCap}
+              selectedDate={selectedProgressDate}
+              onSelectDate={setSelectedProgressDate}
+            />
+          </section>
+
+          <section className="panel">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">{selectedProgressDate ? selectedDayLabel : 'Veckans pass'}</p>
+                <h2>Genomförda</h2>
+              </div>
+              <span className="badge">{filteredSessions.length} pass</span>
+            </div>
+            {filteredSessions?.length ? (
+              <div className="session-list">
+                {filteredSessions.map((s) => (
+                  <div key={s.id} className="session">
+                    <div className="session-title">{s.program_title || 'Eget pass'}</div>
+                    <div className="session-meta">
+                      {formatDuration(s.duration_seconds)} •{' '}
+                      {new Date(s.completed_at).toLocaleString('sv-SE', {
+                        weekday: 'short',
+                        day: 'numeric',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </div>
+                    {s.notes && <p className="session-notes">{s.notes}</p>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="empty-state">
+                {selectedProgressDate ? 'Inga pass denna dag.' : 'Inga pass denna vecka ännu. Dags att köra! 💪'}
+              </p>
+            )}
+          </section>
+
+          <section className="panel">
+            <div className="panel-header">
+              <div>
                 <p className="eyebrow">Progressivt</p>
                 <h2>Program</h2>
               </div>
@@ -727,56 +777,6 @@ function App() {
                   })}
                 </div>
               </>
-            )}
-          </section>
-
-          <section className="panel">
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">Denna vecka</p>
-                <h2>Din träning</h2>
-              </div>
-              <span className="badge">{pointsCap}p/dag</span>
-            </div>
-            <WeekProgress
-              days={weekBarDays}
-              cap={pointsCap}
-              selectedDate={selectedProgressDate}
-              onSelectDate={setSelectedProgressDate}
-            />
-          </section>
-
-          <section className="panel">
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">{selectedProgressDate ? selectedDayLabel : 'Veckans pass'}</p>
-                <h2>Genomförda</h2>
-              </div>
-              <span className="badge">{filteredSessions.length} pass</span>
-            </div>
-            {filteredSessions?.length ? (
-              <div className="session-list">
-                {filteredSessions.map((s) => (
-                  <div key={s.id} className="session">
-                    <div className="session-title">{s.program_title || 'Eget pass'}</div>
-                    <div className="session-meta">
-                      {formatDuration(s.duration_seconds)} •{' '}
-                      {new Date(s.completed_at).toLocaleString('sv-SE', {
-                        weekday: 'short',
-                        day: 'numeric',
-                        month: 'short',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </div>
-                    {s.notes && <p className="session-notes">{s.notes}</p>}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="empty-state">
-                {selectedProgressDate ? 'Inga pass denna dag.' : 'Inga pass denna vecka ännu. Dags att köra! 💪'}
-              </p>
             )}
           </section>
         </div>

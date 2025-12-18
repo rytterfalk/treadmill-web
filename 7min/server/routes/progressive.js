@@ -461,6 +461,7 @@ function computeLadderNextTop({ plan, result, currentTop }) {
 
 router.post('/program-days/:id/complete', authRequired, (req, res) => {
   const resultJson = req.body?.result_json;
+  const durationSec = clampInt(req.body?.duration_sec, 0, 60 * 60 * 12);
   if (!resultJson || typeof resultJson !== 'object') {
     return res.status(400).json({ error: 'result_json krävs' });
   }
@@ -521,6 +522,23 @@ router.post('/program-days/:id/complete', authRequired, (req, res) => {
       JSON.stringify(nextState),
       row.program_id2
     );
+
+    const existing = db
+      .prepare('SELECT id FROM workout_sessions WHERE program_day_id = ? LIMIT 1')
+      .get(row.day_id);
+    if (!existing) {
+      const endIso = nowIso;
+      const startIso =
+        durationSec !== null
+          ? new Date(new Date(endIso).getTime() - durationSec * 1000).toISOString()
+          : endIso;
+      const workoutId = crypto.randomUUID();
+      db.prepare(
+        `INSERT INTO workout_sessions
+          (id, user_id, template_id, session_type, started_at, ended_at, duration_sec, notes, source, treadmill_state_json, program_day_id)
+         VALUES (?, ?, NULL, 'strength', ?, ?, ?, '', 'manual', NULL, ?)`
+      ).run(workoutId, req.user.id, startIso, endIso, durationSec, row.day_id);
+    }
 
     const nextDay = db
       .prepare(
