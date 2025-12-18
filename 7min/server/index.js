@@ -435,6 +435,19 @@ app.get('/api/sessions/:id', authRequired, (req, res) => {
 app.use('/api/calendar', calendarRouter);
 app.use('/api', progressiveRouter);
 
+// Ensure API errors are returned as JSON (not HTML), so the client can show the real message.
+// Must be registered after routes.
+app.use((err, req, res, next) => {
+  console.error(err);
+  if (res.headersSent) return next(err);
+  const status = Number(err.status || err.statusCode || 500);
+  const message = err.message || 'Internal Server Error';
+  if (req.path && req.path.startsWith('/api')) {
+    return res.status(status).json({ error: message });
+  }
+  return res.status(status).send('Server error');
+});
+
 // Fallback för SPA - servera index.html för alla andra GET:ar som inte är /api
 app.get(/^(?!\/api).*/, (req, res) => {
   return res.sendFile(path.join(distPath, 'index.html'));

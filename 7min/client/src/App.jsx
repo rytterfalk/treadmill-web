@@ -28,9 +28,18 @@ async function api(path, options = {}) {
     },
     ...options,
   });
-  const data = await res.json().catch(() => ({}));
+  const text = await res.text();
+  let data = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = {};
+  }
   if (!res.ok) {
-    throw new Error(data.error || 'Något gick fel');
+    const message =
+      data?.error ||
+      (text && text.trim() ? `HTTP ${res.status}: ${text.slice(0, 200)}` : `HTTP ${res.status}`);
+    throw new Error(message || 'Något gick fel');
   }
   return data;
 }
