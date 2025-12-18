@@ -316,14 +316,25 @@ router.get('/progressive-programs/:id', authRequired, (req, res) => {
   if (!program) return res.status(404).json({ error: 'Programmet finns inte' });
 
   const today = isoDateUTC(new Date());
+  const from = typeof req.query.from === 'string' ? req.query.from : today;
+  const to =
+    typeof req.query.to === 'string'
+      ? req.query.to
+      : (() => {
+          const d = new Date(`${today}T00:00:00.000Z`);
+          d.setUTCDate(d.getUTCDate() + 27);
+          return isoDateUTC(d);
+        })();
+
   const days = db
     .prepare(
       `SELECT id, program_id, date, day_type, plan_json, status, result_json, created_at
        FROM progressive_program_days
-       WHERE program_id = ? AND date(date) >= date(?)
+       WHERE program_id = ?
+         AND date(date) BETWEEN date(?) AND date(?)
        ORDER BY date ASC`
     )
-    .all(program.id, today)
+    .all(program.id, from, to)
     .map(normalizeProgramDayRow);
 
   res.json({ program: normalizeProgramRow(program), days });

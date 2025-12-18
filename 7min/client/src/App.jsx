@@ -94,6 +94,10 @@ function App() {
   const [showCreateTypePicker, setShowCreateTypePicker] = useState(false);
   const [todayThing, setTodayThing] = useState(null);
   const [todayThingStatus, setTodayThingStatus] = useState('idle');
+  const [progressivePrograms, setProgressivePrograms] = useState([]);
+  const [selectedProgressiveProgramId, setSelectedProgressiveProgramId] = useState(null);
+  const [progressiveDays, setProgressiveDays] = useState([]);
+  const [progressiveStatus, setProgressiveStatus] = useState('idle');
 
   // Helper to format duration
   function formatDuration(seconds) {
@@ -153,6 +157,7 @@ function App() {
       loadCalendar();
       loadWeekBars();
       loadWeekSessions();
+      loadProgressivePrograms();
     }
   }, [user, view, calendarRange.from, calendarRange.to]);
 
@@ -465,6 +470,55 @@ function App() {
     }
   }
 
+  async function loadProgressivePrograms() {
+    setProgressiveStatus('loading');
+    try {
+      const data = await api('/api/progressive-programs');
+      const programs = data.programs || [];
+      setProgressivePrograms(programs);
+      const active = programs.find((p) => p.active) || programs[0] || null;
+      const nextSelected = selectedProgressiveProgramId || active?.id || null;
+      setSelectedProgressiveProgramId(nextSelected);
+      if (nextSelected) {
+        await loadProgressiveProgramDays(nextSelected);
+      } else {
+        setProgressiveDays([]);
+      }
+      setProgressiveStatus('ready');
+    } catch (err) {
+      setProgressiveStatus('error');
+      setStatus(err.message);
+    }
+  }
+
+  async function loadProgressiveProgramDays(programId) {
+    const today = new Date();
+    const from = new Date(today);
+    from.setDate(today.getDate() - 13);
+    const to = new Date(today);
+    to.setDate(today.getDate() + 14);
+    const fromIso = from.toISOString().slice(0, 10);
+    const toIso = to.toISOString().slice(0, 10);
+
+    const data = await api(`/api/progressive-programs/${programId}?from=${fromIso}&to=${toIso}`);
+    setProgressiveDays(data.days || []);
+    return data.program;
+  }
+
+  function startOfWeekIso(date) {
+    const d = new Date(date);
+    const day = d.getDay(); // 0 Sun .. 6 Sat
+    const diff = day === 0 ? -6 : 1 - day; // Monday as start
+    d.setDate(d.getDate() + diff);
+    return d.toISOString().slice(0, 10);
+  }
+
+  function addDaysIso(iso, offset) {
+    const d = new Date(`${iso}T00:00:00.000Z`);
+    d.setUTCDate(d.getUTCDate() + offset);
+    return d.toISOString().slice(0, 10);
+  }
+
   if (!user) {
     return (
       <div className="auth-hero">
@@ -527,6 +581,29 @@ function App() {
 
   const equipmentSlugs = userEquipment.map((e) => e.slug);
 
+  const selectedProgressiveProgram = useMemo(() => {
+    if (!selectedProgressiveProgramId) return null;
+    return progressivePrograms.find((p) => p.id === selectedProgressiveProgramId) || null;
+  }, [progressivePrograms, selectedProgressiveProgramId]);
+
+  const nextTestDate = useMemo(() => {
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const next = progressiveDays.find(
+      (d) => d.day_type === 'test' && d.status === 'planned' && d.date >= todayIso
+    );
+    return next?.date || null;
+  }, [progressiveDays]);
+
+  const weekRows = useMemo(() => {
+    const today = new Date();
+    const monday = startOfWeekIso(today);
+    const byDate = new Map(progressiveDays.map((d) => [d.date, d]));
+    return Array.from({ length: 7 }, (_, i) => {
+      const date = addDaysIso(monday, i);
+      return { date, day: byDate.get(date) || null };
+    });
+  }, [progressiveDays]);
+
   if (view === 'calendar') {
     // Filter sessions by selected day if a day is selected
     const filteredSessions = selectedProgressDate
@@ -554,6 +631,79 @@ function App() {
         {status && <div className="status floating">{status}</div>}
 
         <div className="grid progress-grid">
+          <section className="panel">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Progressivt</p>
+                <h2>Program</h2>
+              </div>
+              {progressivePrograms.length ? (
+                <select
+                  value={selectedProgressiveProgramId || ''}
+                  onChange={async (e) => {
+                    const id = e.target.value || null;
+                    setSelectedProgressiveProgramId(id);
+                    if (id) await loadProgressiveProgramDays(id);
+                  }}
+                >
+                  {progressivePrograms.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.exercise_key} • {p.method} {p.active ? '' : '(inaktiv)'}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <button className="ghost" onClick={() => setView('programs')}>
+                  Skapa →
+                </button>
+              )}
+            </div>
+
+            {progressiveStatus === 'loading' ? (
+              <p className="empty-state">Laddar program…</p>
+            ) : !selectedProgressiveProgram ? (
+              <p className="empty-state">
+                Inget aktivt program ännu. Skapa ett progressivt program under “Passen”.
+              </p>
+            ) : (
+              <>
+                <div className="progressive-meta">
+                  <span className="badge">Max: {selectedProgressiveProgram.test_max}</span>
+                  <span className="badge">Nästa test: {nextTestDate || '—'}</span>
+                  <span className="badge">
+                    Status: {selectedProgressiveProgram.active ? 'Aktiv' : 'Inaktiv'}
+                  </span>
+                </div>
+
+                <div className="week-table">
+                  {weekRows.map((row) => {
+                    const label = new Date(row.date).toLocaleDateString('sv-SE', {
+                      weekday: 'short',
+                      day: 'numeric',
+                      month: 'short',
+                    });
+                    const day = row.day;
+                    const type = day?.day_type || '—';
+                    const statusText = day?.status || '—';
+                    const badgeClass =
+                      statusText === 'done'
+                        ? 'badge ok'
+                        : statusText === 'skipped'
+                          ? 'badge warn'
+                          : 'badge';
+                    return (
+                      <div key={row.date} className="week-row">
+                        <div className="week-date">{label}</div>
+                        <div className="week-type">{type}</div>
+                        <div className={badgeClass}>{statusText}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </section>
+
           <section className="panel">
             <div className="panel-header">
               <div>

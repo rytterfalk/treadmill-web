@@ -32,5 +32,11 @@ Detta dokument beskriver status på arbetet enligt `7min/workplan progress worko
 - Backend: `POST /api/program-days/:id/test` (sparar nytt max, re-basar state, skapar nästa 4 veckor vid behov)
 - UI: `7min/client/src/components/ProgramDayScreen.jsx` (test-input när `day_type === "test"`)
 
+### M7 — Progress-sida: plan vs done + test-info
+- UI: `7min/client/src/App.jsx` under Progress-fliken (view `calendar`)
+  - Väljer progressivt program (om flera)
+  - Visar `test_max`, nästa testdatum och veckovy för `planned/done/skipped`
+- Backend: `GET /api/progressive-programs/:id?from=YYYY-MM-DD&to=YYYY-MM-DD` (datumintervall för program_days)
+
 ## Näst
-- M7 — Progress-sida: plan vs done + test-info
+- (Senare) finslipa veckovy (ikoner/CTA per dag)
