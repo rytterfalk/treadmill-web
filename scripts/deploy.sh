@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage: scripts/deploy.sh [options]
+
+Runs 7min deploy steps in a safe order:
+  - optional git pull
+  - npm install (root 7min + client) only when needed
+  - db migrate only when needed
+  - build client
+  - optional reload caddy + restart 7min.service
+
+Options:
+  --pull              Run git pull in repo root first
+  --restart           Reload caddy and restart 7min.service (uses sudo)
+  --no-restart        Do not restart services (default)
+  --force-install     Always run npm install for 7min and client
+  --force-migrate     Always run migrations
+  -h, --help          Show this help
+
+Examples:
+  bash scripts/deploy.sh --pull --restart
+  bash scripts/deploy.sh --restart
+USAGE
+}
+
+need_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+repo_root() {
+  git rev-parse --show-toplevel 2>/dev/null
+}
+
+ensure_npm_install() {
+  local dir="$1"
+  local force="${2:-0}"
+
+  if [[ "$force" == "1" ]]; then
+    echo "[deploy] npm install (forced) in $dir"
+    npm --prefix "$dir" install
+    return 0
+  fi
+
+  if [[ ! -d "$dir/node_modules" ]]; then
+    echo "[deploy] npm install in $dir (node_modules missing)"
+    npm --prefix "$dir" install
+    return 0
+  fi
+
+  if [[ -f "$dir/package-lock.json" && -f "$dir/node_modules/.package-lock.json" ]]; then
+    if ! cmp -s "$dir/package-lock.json" "$dir/node_modules/.package-lock.json"; then
+      echo "[deploy] npm install in $dir (lockfile changed)"
+      npm --prefix "$dir" install
+      return 0
+    fi
+  fi
+
+  echo "[deploy] npm install skipped in $dir"
+}
+
+needs_migrate() {
+  local db_path="$1"
+  local migrations_dir="$2"
+
+  if [[ ! -f "$db_path" ]]; then
+    return 0
+  fi
+
+  if ! need_cmd sqlite3; then
+    return 0
+  fi
+
+  # If migrations table is missing, we need to run migrate.
+  if ! sqlite3 "$db_path" "SELECT 1 FROM sqlite_master WHERE type='table' AND name='migrations';" | grep -q 1; then
+    return 0
+  fi
+
+  local tmp_applied tmp_files
+  tmp_applied="$(mktemp)"
+  tmp_files="$(mktemp)"
+  trap 'rm -f "$tmp_applied" "$tmp_files"' RETURN
+
+  sqlite3 "$db_path" "SELECT id FROM migrations ORDER BY id;" >"$tmp_applied" || true
+  find "$migrations_dir" -maxdepth 1 -type f -name '*.sql' -print \
+    | sed 's#.*/##' \
+    | sed 's/\.sql$//' \
+    | sort >"$tmp_files"
+
+  # If any migration file is not in applied => need migrate.
+  if comm -23 "$tmp_files" "$tmp_applied" | grep -q .; then
+    return 0
+  fi
+
+  return 1
+}
+
+PULL=0
+RESTART=0
+FORCE_INSTALL=0
+FORCE_MIGRATE=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --pull) PULL=1; shift ;;
+    --restart) RESTART=1; shift ;;
+    --no-restart) RESTART=0; shift ;;
+    --force-install) FORCE_INSTALL=1; shift ;;
+    --force-migrate) FORCE_MIGRATE=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "Unknown arg: $1"; usage; exit 2 ;;
+  esac
+done
+
+ROOT="$(repo_root)"
+if [[ -z "${ROOT:-}" ]]; then
+  echo "[deploy] Not inside a git repo."
+  exit 2
+fi
+
+SEVENMIN="$ROOT/7min"
+CLIENT="$SEVENMIN/client"
+MIGRATIONS_DIR="$SEVENMIN/server/db/migrations"
+DB_PATH="${DB_PATH:-$SEVENMIN/server/data/app.db}"
+
+if [[ "$PULL" == "1" ]]; then
+  echo "[deploy] git pull"
+  (cd "$ROOT" && git pull)
+fi
+
+echo "[deploy] deps"
+ensure_npm_install "$SEVENMIN" "$FORCE_INSTALL"
+ensure_npm_install "$CLIENT" "$FORCE_INSTALL"
+
+echo "[deploy] migrate"
+if [[ "$FORCE_MIGRATE" == "1" ]]; then
+  echo "[deploy] npm run migrate (forced)"
+  (cd "$SEVENMIN" && npm run migrate)
+else
+  if needs_migrate "$DB_PATH" "$MIGRATIONS_DIR"; then
+    echo "[deploy] npm run migrate (needed)"
+    (cd "$SEVENMIN" && npm run migrate)
+  else
+    echo "[deploy] migrate skipped (no new migrations)"
+  fi
+fi
+
+echo "[deploy] build"
+(cd "$SEVENMIN" && npm run build)
+
+if [[ "$RESTART" == "1" ]]; then
+  if ! need_cmd systemctl; then
+    echo "[deploy] systemctl not found; skipping restart."
+    exit 0
+  fi
+  echo "[deploy] reload caddy"
+  sudo systemctl reload caddy
+  echo "[deploy] restart 7min.service"
+  sudo systemctl restart 7min.service
+fi
+
+echo "[deploy] done"
+

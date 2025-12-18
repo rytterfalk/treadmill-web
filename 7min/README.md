@@ -19,6 +19,17 @@ npm run dev
 - API körs på port `4000`.
 - Frontend (Vite/React) körs på `http://localhost:5173` och proxar `/api` till backend.
 
+## Deploy (server)
+
+För en robust deploy-rutin (install/migrate/build i rätt ordning) finns ett script i repo-root:
+
+```bash
+cd ~/treadmill-web
+bash scripts/deploy.sh --pull --restart
+```
+
+Scriptet kör `npm install` och `npm run migrate` bara när det behövs, bygger clienten och restartar tjänsterna om du anger `--restart`.
+
 ## Miljövariabler
 
 Skapa vid behov en `.env` i rotmappen:
