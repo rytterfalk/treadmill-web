@@ -125,17 +125,6 @@ function ProgramDayScreen({ programDayId }) {
   }, [plan]);
 
   useEffect(() => {
-    if (!entries.length) return;
-    setActuals((prev) => {
-      const next = { ...prev };
-      entries.forEach((e) => {
-        if (next[e.key] == null) next[e.key] = e.target;
-      });
-      return next;
-    });
-  }, [entries]);
-
-  useEffect(() => {
     if (dayType !== 'test') return;
     const baseline = Number(program?.test_max) || 0;
     setTestMax((prev) => (prev ? prev : baseline || 1));
