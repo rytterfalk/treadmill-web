@@ -580,6 +580,32 @@ function App() {
     });
   }, [progressiveDays]);
 
+  const lastWorkoutSummary = useMemo(() => {
+    if (!lastWorkout) return null;
+    const sec = Number(lastWorkout.duration_sec);
+    let durationLabel = '';
+    if (Number.isFinite(sec) && sec > 0) {
+      durationLabel = `${Math.floor(sec / 60)} min ${sec % 60 || 0}s`;
+    } else if (lastWorkout.started_at && lastWorkout.ended_at) {
+      const s = new Date(lastWorkout.started_at);
+      const e = new Date(lastWorkout.ended_at);
+      const sec2 = Math.max(0, Math.round((e - s) / 1000));
+      durationLabel = `${Math.floor(sec2 / 60)} min ${sec2 % 60 || 0}s`;
+    }
+    const label =
+      lastWorkout.session_type === 'progressive'
+        ? 'Progressivt'
+        : lastWorkout.session_type === 'hiit'
+          ? 'HIIT'
+          : 'Pass';
+    return {
+      label,
+      durationLabel,
+      sessionType: lastWorkout.session_type,
+      id: lastWorkout.id,
+    };
+  }, [lastWorkout]);
+
   if (!user) {
     return (
       <div className="auth-hero">
@@ -641,32 +667,6 @@ function App() {
   }
 
   const equipmentSlugs = userEquipment.map((e) => e.slug);
-
-  const lastWorkoutSummary = useMemo(() => {
-    if (!lastWorkout) return null;
-    const sec = Number(lastWorkout.duration_sec);
-    let durationLabel = '';
-    if (Number.isFinite(sec) && sec > 0) {
-      durationLabel = `${Math.floor(sec / 60)} min ${sec % 60 || 0}s`;
-    } else if (lastWorkout.started_at && lastWorkout.ended_at) {
-      const s = new Date(lastWorkout.started_at);
-      const e = new Date(lastWorkout.ended_at);
-      const sec2 = Math.max(0, Math.round((e - s) / 1000));
-      durationLabel = `${Math.floor(sec2 / 60)} min ${sec2 % 60 || 0}s`;
-    }
-    const label =
-      lastWorkout.session_type === 'progressive'
-        ? 'Progressivt'
-        : lastWorkout.session_type === 'hiit'
-          ? 'HIIT'
-          : 'Pass';
-    return {
-      label,
-      durationLabel,
-      sessionType: lastWorkout.session_type,
-      id: lastWorkout.id,
-    };
-  }, [lastWorkout]);
   if (view === 'calendar') {
     // Filter sessions by selected day if a day is selected
     const filteredSessions = selectedProgressDate
