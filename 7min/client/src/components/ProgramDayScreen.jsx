@@ -18,11 +18,11 @@ function ProgramDayScreen({ programDayId }) {
   const [actuals, setActuals] = useState({});
   const [saving, setSaving] = useState(false);
   const [testMax, setTestMax] = useState(0);
-  const [durationMin, setDurationMin] = useState(10);
   const [mode, setMode] = useState('idle'); // idle | work | rest | summary
   const [currentSet, setCurrentSet] = useState(0);
   const [restRemaining, setRestRemaining] = useState(0);
   const restTimerRef = useRef(null);
+  const startTimeRef = useRef(null);
 
   const plan = todayData?.program_day?.plan || null;
   const program = todayData?.program || null;
@@ -151,6 +151,7 @@ function ProgramDayScreen({ programDayId }) {
 
   function startWorkout() {
     if (!entries.length) return;
+    startTimeRef.current = Date.now();
     setMode('work');
     setCurrentSet(0);
   }
@@ -234,9 +235,10 @@ function ProgramDayScreen({ programDayId }) {
         throw new Error('Okänd plan');
       }
 
-      const minutes = Number(durationMin);
-      const duration_sec =
-        Number.isFinite(minutes) && minutes > 0 ? Math.round(minutes * 60) : null;
+      let duration_sec = null;
+      if (startTimeRef.current) {
+        duration_sec = Math.max(0, Math.round((Date.now() - startTimeRef.current) / 1000));
+      }
 
       await api(`/api/program-days/${programDayId}/complete`, {
         method: 'POST',
@@ -368,28 +370,28 @@ function ProgramDayScreen({ programDayId }) {
                 <>
                   {plan?.method === 'submax' || plan?.method === 'ladder' ? (
                     <>
-                      <div className="workout-card">
-                        <div className="workout-row">
-                          <div>
-                            <div>Tid (min)</div>
-                            <div className="muted">Används för poäng i kalendern.</div>
-                          </div>
-                          <input
-                            type="number"
-                            min={1}
-                            value={durationMin ?? ''}
-                            onChange={(ev) => setDurationMin(ev.target.value)}
-                            disabled={saving}
-                          />
-                        </div>
-                      </div>
-
                       {mode === 'idle' && (
-                        <div className="actions">
-                          <button className="primary" onClick={startWorkout} disabled={entries.length === 0}>
-                            Starta pass
-                          </button>
-                        </div>
+                        <>
+                          <div className="workout-card">
+                            <div className="muted" style={{ marginBottom: '0.5rem' }}>
+                              Förhandsgranska passen. Tryck start för att gå igenom steg för steg.
+                            </div>
+                            {entries.map((e, idx) => (
+                              <div key={e.key} className="workout-row">
+                                <div>
+                                  <div>{plan.method === 'submax' ? `Set ${idx + 1}` : `Steg ${idx + 1}`}</div>
+                                  <div className="muted">{plan.method === 'submax' ? 'Target' : 'Steg'}: {e.target}</div>
+                                </div>
+                              </div>
+                            ))}
+                            {!entries.length && <p className="muted">Ingen plan hittades.</p>}
+                          </div>
+                          <div className="actions">
+                            <button className="primary" onClick={startWorkout} disabled={entries.length === 0}>
+                              Starta pass
+                            </button>
+                          </div>
+                        </>
                       )}
 
                       {mode === 'work' && (
@@ -485,19 +487,6 @@ function ProgramDayScreen({ programDayId }) {
                   ) : (
                     <>
                       <div className="workout-card">
-                        <div className="workout-row">
-                          <div>
-                            <div>Tid (min)</div>
-                            <div className="muted">Används för poäng i kalendern.</div>
-                          </div>
-                          <input
-                            type="number"
-                            min={1}
-                            value={durationMin ?? ''}
-                            onChange={(ev) => setDurationMin(ev.target.value)}
-                            disabled={saving}
-                          />
-                        </div>
                         {entries.map((e) => (
                           <div key={e.key} className="workout-row">
                             <div>
