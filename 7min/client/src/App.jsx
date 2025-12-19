@@ -104,6 +104,7 @@ function App() {
   const [todayThing, setTodayThing] = useState(null);
   const [todayThingStatus, setTodayThingStatus] = useState('idle');
   const [lastWorkout, setLastWorkout] = useState(null);
+  const [lastWorkoutLoaded, setLastWorkoutLoaded] = useState(false);
   const [progressivePrograms, setProgressivePrograms] = useState([]);
   const [selectedProgressiveProgramId, setSelectedProgressiveProgramId] = useState(null);
   const [progressiveDays, setProgressiveDays] = useState([]);
@@ -491,6 +492,7 @@ function App() {
     try {
       const data = await api('/api/workout-sessions/recent?limit=1');
       setLastWorkout((data.workouts || [])[0] || null);
+      setLastWorkoutLoaded(true);
     } catch (err) {
       // ignore
     }
@@ -594,13 +596,28 @@ function App() {
     }
     const label =
       lastWorkout.session_type === 'progressive'
-        ? 'Progressivt'
+        ? `Progressivt • ${lastWorkout.program_method || ''}`.trim()
         : lastWorkout.session_type === 'hiit'
           ? 'HIIT'
           : 'Pass';
+    const exercise = lastWorkout.program_exercise_key || null;
+
+    let repsLabel = '';
+    if (lastWorkout.program_day_result_json) {
+      const r = lastWorkout.program_day_result_json;
+      if (r.sets?.length) {
+        const total = r.sets.reduce((sum, s) => sum + (Number(s.actual_reps) || 0), 0);
+        repsLabel = `${total} reps`;
+      } else if (Array.isArray(r.steps)) {
+        const total = r.steps.reduce((sum, s) => sum + (Number(s) || 0), 0);
+        repsLabel = `${total} reps`;
+      }
+    }
     return {
       label,
       durationLabel,
+      repsLabel,
+      exercise,
       sessionType: lastWorkout.session_type,
       id: lastWorkout.id,
     };
@@ -710,7 +727,7 @@ function App() {
             />
           </section>
 
-          {lastWorkoutSummary && (
+          {lastWorkoutLoaded && lastWorkoutSummary && (
             <section className="panel">
               <div className="panel-header">
                 <div>
@@ -735,22 +752,30 @@ function App() {
             </div>
             {filteredSessions?.length ? (
               <div className="session-list">
-                {filteredSessions.map((s) => (
-                  <div key={s.id} className="session">
-                    <div className="session-title">{s.program_title || 'Eget pass'}</div>
-                    <div className="session-meta">
-                      {formatDuration(s.duration_seconds)} •{' '}
-                      {new Date(s.completed_at).toLocaleString('sv-SE', {
-                        weekday: 'short',
-                        day: 'numeric',
-                        month: 'short',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                {filteredSessions.map((s) => {
+                  const d = new Date(s.completed_at);
+                  const duration = formatDuration(s.duration_seconds);
+                  const detail = [];
+                  if (s.session_type === 'progressive') detail.push('Progressivt');
+                  if (s.session_type === 'hiit') detail.push('HIIT');
+                  return (
+                    <div key={s.id} className="session">
+                      <div className="session-title">{s.program_title || (detail[0] || 'Pass')}</div>
+                      <div className="session-meta">
+                        {duration} •{' '}
+                        {d.toLocaleString('sv-SE', {
+                          weekday: 'short',
+                          day: 'numeric',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </div>
+                      {detail.length ? <div className="session-meta subtle">{detail.join(' • ')}</div> : null}
+                      {s.notes && <p className="session-notes">{s.notes}</p>}
                     </div>
-                    {s.notes && <p className="session-notes">{s.notes}</p>}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <p className="empty-state">
@@ -1057,24 +1082,24 @@ function App() {
                     : 'Inget planerat'}
               </h3>
             </div>
-            {todayThing?.kind === 'program_day' ? (
-              <span className="badge">
-                {todayThing.program_day?.status === 'done' ? 'genomförd' : todayThing.program_day?.day_type}
-              </span>
-            ) : null}
+        {todayThing?.kind === 'program_day' ? (
+          <span className="badge">
+            {todayThing.program_day?.status === 'done' ? 'genomförd' : todayThing.program_day?.day_type}
+          </span>
+        ) : null}
           </div>
 
-          {todayThing?.kind === 'program_day' ? (
-            <>
-              {todayThing.program_day?.day_type === 'rest' ? (
-                <p className="empty-state">Vilodag. Kom tillbaka nästa träningsdag.</p>
-              ) : todayThing.program_day?.status === 'done' ? (
+        {todayThing?.kind === 'program_day' ? (
+          <>
+            {todayThing.program_day?.day_type === 'rest' ? (
+              <p className="empty-state">Vilodag. Kom tillbaka nästa träningsdag.</p>
+            ) : todayThing.program_day?.status === 'done' ? (
                 <p className="empty-state">Genomförd. Bra jobbat!</p>
-              ) : todayThing.program_day?.day_type === 'workout' ? (
-                <div className="actions-row">
-                  <button
-                    onClick={() =>
-                      (window.location.href = `/workout/program-day/${todayThing.program_day.id}`)
+            ) : todayThing.program_day?.day_type === 'workout' ? (
+              <div className="actions-row">
+                <button
+                  onClick={() =>
+                    (window.location.href = `/workout/program-day/${todayThing.program_day.id}`)
                     }
                   >
                     Starta
@@ -1104,7 +1129,7 @@ function App() {
           )}
         </section>
 
-        {lastWorkoutSummary && (
+        {lastWorkoutLoaded && lastWorkoutSummary && (
           <section className="panel today-thing-panel">
             <div className="panel-header">
               <div>
