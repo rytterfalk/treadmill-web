@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 async function api(path, options = {}) {
   const res = await fetch(path, {
@@ -19,6 +19,13 @@ function ProgramDayScreen({ programDayId }) {
   const [saving, setSaving] = useState(false);
   const [testMax, setTestMax] = useState(0);
   const [durationMin, setDurationMin] = useState(10);
+  const [mode, setMode] = useState('idle'); // idle | work | rest | summary
+  const [currentSet, setCurrentSet] = useState(0);
+  const [restRemaining, setRestRemaining] = useState(0);
+  const restTimerRef = useRef(null);
+
+  const isSubmax = plan?.method === 'submax';
+  const isLadder = plan?.method === 'ladder';
 
   useEffect(() => {
     const body = document.body;
@@ -134,21 +141,105 @@ function ProgramDayScreen({ programDayId }) {
     setTestMax((prev) => (prev ? prev : baseline || 1));
   }, [dayType, program]);
 
+  useEffect(() => {
+    if (!entries.length) return;
+    setActuals((prev) => {
+      const next = { ...prev };
+      entries.forEach((e) => {
+        if (next[e.key] == null) next[e.key] = e.target;
+      });
+      return next;
+    });
+  }, [entries]);
+
+  useEffect(() => {
+    return () => {
+      if (restTimerRef.current) {
+        clearInterval(restTimerRef.current);
+      }
+    };
+  }, []);
+
+  function startWorkout() {
+    if (!entries.length) return;
+    setMode('work');
+    setCurrentSet(0);
+  }
+
+  function startRest(seconds) {
+    const total = Math.max(0, Math.round(seconds || 0));
+    setRestRemaining(total);
+    setMode('rest');
+    if (restTimerRef.current) clearInterval(restTimerRef.current);
+    if (total <= 0) {
+      setMode('work');
+      return;
+    }
+    restTimerRef.current = setInterval(() => {
+      setRestRemaining((prev) => {
+        if (prev <= 1) {
+          clearInterval(restTimerRef.current);
+          restTimerRef.current = null;
+          setMode('work');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }
+
+  function handleSetComplete() {
+    const entry = entries[currentSet];
+    if (!entry) return;
+    const actual = Number(actuals[entry.key]) || 0;
+    const target = entry.target || 0;
+    let baseRest = 120;
+
+    if (isSubmax) {
+      baseRest = plan?.sets?.[currentSet]?.rest_sec ?? 120;
+    } else if (isLadder) {
+      // For ladder we use rest_between_steps; plan.ladders[0] is v1 single ladder
+      const ladderRest = plan?.ladders?.[0]?.rest_between_steps_sec ?? 60;
+      baseRest = ladderRest;
+    }
+
+    const restBoost = actual < target ? 20 : 0;
+    const restSeconds = Math.min(240, Number(baseRest || 0) + restBoost);
+
+    const nextIndex = currentSet + 1;
+    if (nextIndex >= entries.length) {
+      setMode('summary');
+      return;
+    }
+    setCurrentSet(nextIndex);
+    startRest(restSeconds);
+  }
+
+  function summaryActuals() {
+    if (!plan?.method) return actuals;
+    const map = { ...actuals };
+    entries.forEach((e) => {
+      if (map[e.key] == null) map[e.key] = e.target;
+    });
+    return map;
+  }
+
   async function handleComplete() {
     if (!plan) return;
     setSaving(true);
     try {
       let result_json;
+      const actualMap = summaryActuals();
       if (plan.method === 'submax') {
         result_json = {
           sets: entries.map((e) => ({
             target_reps: e.target,
-            actual_reps: Number(actuals[e.key]) || 0,
+            actual_reps: Number(actualMap[e.key]) || 0,
           })),
         };
       } else if (plan.method === 'ladder') {
         result_json = {
-          steps: entries.map((e) => Number(actuals[e.key]) || 0),
+          steps: entries.map((e) => Number(actualMap[e.key]) || 0),
         };
       } else {
         throw new Error('Okänd plan');
@@ -261,10 +352,10 @@ function ProgramDayScreen({ programDayId }) {
         </div>
         <div className="workout-content">
           {error ? <div className="status">{error}</div> : null}
-          {dayType === 'test' ? (
-            <>
-              <div className="workout-card">
-                <div className="workout-row">
+              {dayType === 'test' ? (
+                <>
+                  <div className="workout-card">
+                    <div className="workout-row">
                   <div>
                     <div>Max-test (reps)</div>
                     <div className="muted">Spara ditt nya max. Programmet re-basas direkt.</div>
@@ -284,54 +375,174 @@ function ProgramDayScreen({ programDayId }) {
                 </button>
               </div>
             </>
-          ) : (
-            <>
-              <div className="workout-card">
-                <div className="workout-row">
-                  <div>
-                    <div>Tid (min)</div>
-                    <div className="muted">Används för poäng i kalendern.</div>
-                  </div>
-                  <input
-                    type="number"
-                    min={1}
-                    value={durationMin ?? ''}
-                    onChange={(ev) => setDurationMin(ev.target.value)}
-                    disabled={saving}
-                  />
-                </div>
-                {entries.map((e) => (
-                  <div key={e.key} className="workout-row">
-                    <div>
-                      <div>{e.label}</div>
-                      <div className="muted">Target: {e.target}</div>
-                    </div>
-                    <input
-                      type="number"
-                      min={0}
-                      value={actuals[e.key] ?? ''}
-                      onChange={(ev) =>
-                        setActuals((prev) => ({ ...prev, [e.key]: ev.target.value }))
-                      }
-                      disabled={saving}
-                    />
-                  </div>
-                ))}
-              </div>
+              ) : (
+                <>
+                  {plan?.method === 'submax' || plan?.method === 'ladder' ? (
+                    <>
+                      <div className="workout-card">
+                        <div className="workout-row">
+                          <div>
+                            <div>Tid (min)</div>
+                            <div className="muted">Används för poäng i kalendern.</div>
+                          </div>
+                          <input
+                            type="number"
+                            min={1}
+                            value={durationMin ?? ''}
+                            onChange={(ev) => setDurationMin(ev.target.value)}
+                            disabled={saving}
+                          />
+                        </div>
+                      </div>
 
-              <div className="actions">
-                <button
-                  className="primary"
-                  onClick={handleComplete}
-                  disabled={saving || entries.length === 0}
-                >
-                  {saving ? 'Sparar…' : 'Spara & Klar'}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
+                      {mode === 'idle' && (
+                        <div className="actions">
+                          <button className="primary" onClick={startWorkout} disabled={entries.length === 0}>
+                            Starta pass
+                          </button>
+                        </div>
+                      )}
+
+                      {mode === 'work' && (
+                        <div className="workout-card">
+                          <div className="workout-row">
+                            <div>
+                              <div>Set {currentSet + 1} / {entries.length}</div>
+                              <div className="muted">
+                                {plan.method === 'submax'
+                                  ? `Target: ${entries[currentSet]?.target}`
+                                  : `Steg: ${entries[currentSet]?.target}`}
+                              </div>
+                            </div>
+                            <input
+                              type="number"
+                              min={0}
+                              value={actuals[entries[currentSet]?.key] ?? entries[currentSet]?.target ?? ''}
+                              onChange={(ev) =>
+                                setActuals((prev) => ({
+                                  ...prev,
+                                  [entries[currentSet]?.key]: ev.target.value,
+                                }))
+                              }
+                              disabled={saving}
+                            />
+                          </div>
+                          <div className="muted">Justera om du inte klarar target.</div>
+                          <div className="actions">
+                            <button className="primary" onClick={handleSetComplete} disabled={saving}>
+                              Klart set
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {mode === 'rest' && (
+                        <div className="workout-card">
+                          <div className="workout-row">
+                            <div>
+                              <div>Vila</div>
+                              <div className="muted">Nästa set: {currentSet + 1}/{entries.length}</div>
+                            </div>
+                            <div style={{ fontSize: '1.4rem', fontWeight: 700 }}>
+                              {restRemaining}s
+                            </div>
+                          </div>
+                          <div className="muted">
+                            Vilan ökar +20s om du inte klarade {plan.method === 'submax' ? 'setet' : 'steget'}.
+                          </div>
+                        </div>
+                      )}
+
+                      {mode === 'summary' && (
+                        <>
+                          <div className="workout-card">
+                            <div className="muted" style={{ marginBottom: '0.5rem' }}>Sammanställning</div>
+                            {entries.map((e, idx) => (
+                              <div key={e.key} className="workout-row">
+                                <div>
+                                  <div>Set {idx + 1}</div>
+                                  <div className="muted">
+                                    {plan.method === 'submax' ? `Target: ${e.target}` : `Steg: ${e.target}`}
+                                  </div>
+                                </div>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={actuals[e.key] ?? e.target}
+                                  onChange={(ev) =>
+                                    setActuals((prev) => ({ ...prev, [e.key]: ev.target.value }))
+                                  }
+                                  disabled={saving}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                          <div className="actions">
+                            <button
+                              className="primary"
+                              onClick={handleComplete}
+                              disabled={saving || entries.length === 0}
+                            >
+                              {saving ? 'Sparar…' : 'Spara & Klar'}
+                            </button>
+                          </div>
+                        </>
+                      )}
+
+                      {mode === 'idle' && entries.length === 0 && (
+                        <p className="muted">Ingen plan hittades.</p>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div className="workout-card">
+                        <div className="workout-row">
+                          <div>
+                            <div>Tid (min)</div>
+                            <div className="muted">Används för poäng i kalendern.</div>
+                          </div>
+                          <input
+                            type="number"
+                            min={1}
+                            value={durationMin ?? ''}
+                            onChange={(ev) => setDurationMin(ev.target.value)}
+                            disabled={saving}
+                          />
+                        </div>
+                        {entries.map((e) => (
+                          <div key={e.key} className="workout-row">
+                            <div>
+                              <div>{e.label}</div>
+                              <div className="muted">Target: {e.target}</div>
+                            </div>
+                            <input
+                              type="number"
+                              min={0}
+                              value={actuals[e.key] ?? ''}
+                              onChange={(ev) =>
+                                setActuals((prev) => ({ ...prev, [e.key]: ev.target.value }))
+                              }
+                              disabled={saving}
+                            />
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="actions">
+                        <button
+                          className="primary"
+                          onClick={handleComplete}
+                          disabled={saving || entries.length === 0}
+                        >
+                          {saving ? 'Sparar…' : 'Spara & Klar'}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
     </>
   );
 }
