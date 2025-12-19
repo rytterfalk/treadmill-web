@@ -359,6 +359,21 @@ router.get('/today', authRequired, (req, res) => {
   const row = db
     .prepare(
       `SELECT d.id AS day_id, d.program_id, d.date, d.day_type, d.plan_json, d.status, d.result_json, d.created_at AS day_created_at,
+              (SELECT ws.duration_sec
+               FROM workout_sessions ws
+               WHERE ws.program_day_id = d.id
+               ORDER BY COALESCE(ws.started_at, ws.ended_at, ws.created_at) DESC
+               LIMIT 1) AS workout_duration_sec,
+              (SELECT ws.started_at
+               FROM workout_sessions ws
+               WHERE ws.program_day_id = d.id
+               ORDER BY COALESCE(ws.started_at, ws.ended_at, ws.created_at) DESC
+               LIMIT 1) AS workout_started_at,
+              (SELECT ws.ended_at
+               FROM workout_sessions ws
+               WHERE ws.program_day_id = d.id
+               ORDER BY COALESCE(ws.started_at, ws.ended_at, ws.created_at) DESC
+               LIMIT 1) AS workout_ended_at,
               p.id AS program_id2, p.exercise_key, p.method, p.target_value, p.test_max, p.schedule_json, p.state_json, p.active, p.created_at AS program_created_at
        FROM progressive_program_days d
        JOIN progressive_programs p ON p.id = d.program_id
@@ -395,6 +410,9 @@ router.get('/today', authRequired, (req, res) => {
     plan_json: row.plan_json,
     status: row.status,
     result_json: row.result_json,
+    workout_duration_sec: row.workout_duration_sec,
+    workout_started_at: row.workout_started_at,
+    workout_ended_at: row.workout_ended_at,
     created_at: row.day_created_at,
   });
 

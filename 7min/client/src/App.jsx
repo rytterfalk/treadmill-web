@@ -629,6 +629,45 @@ function App() {
     return key.charAt(0).toUpperCase() + key.slice(1);
   }
 
+  function formatDurationLong(seconds, startedAt, endedAt) {
+    const sec = Number(seconds);
+    if (Number.isFinite(sec) && sec > 0) {
+      return `${Math.floor(sec / 60)} min ${sec % 60 || 0}s`;
+    }
+    if (startedAt && endedAt) {
+      const s = new Date(startedAt);
+      const e = new Date(endedAt);
+      const sec2 = Math.max(0, Math.round((e - s) / 1000));
+      return `${Math.floor(sec2 / 60)} min ${sec2 % 60 || 0}s`;
+    }
+    return '';
+  }
+
+  const todayThingSummary = useMemo(() => {
+    if (todayThing?.kind !== 'program_day') return null;
+    const day = todayThing.program_day || null;
+    const program = todayThing.program || null;
+    const exercise = program?.exercise_key || '';
+
+    const result = day?.result || null;
+    let repsLabel = '';
+    if (result?.sets?.length) {
+      const total = result.sets.reduce((sum, s) => sum + (Number(s.actual_reps) || 0), 0);
+      repsLabel = total ? `${total} reps` : '';
+    } else if (Array.isArray(result?.steps)) {
+      const total = result.steps.reduce((sum, s) => sum + (Number(s) || 0), 0);
+      repsLabel = total ? `${total} reps` : '';
+    }
+
+    const durationLabel = formatDurationLong(
+      day?.workout_duration_sec,
+      day?.workout_started_at,
+      day?.workout_ended_at
+    );
+
+    return { repsLabel, durationLabel, exercise };
+  }, [todayThing]);
+
   if (!user) {
     return (
       <div className="auth-hero">
@@ -1089,7 +1128,7 @@ function App() {
       {status && <div className="status floating">{status}</div>}
 
       <div className="start-view">
-        <section className="panel today-thing-panel">
+        <section className="panel today-thing-panel today-thing-compact">
           <div className="panel-header">
             <div>
               <p className="eyebrow">Dagens grej</p>
@@ -1101,19 +1140,39 @@ function App() {
                     : 'Inget planerat'}
               </h3>
             </div>
-        {todayThing?.kind === 'program_day' ? (
-          <span className="badge">
-            {todayThing.program_day?.status === 'done' ? 'genomförd' : todayThing.program_day?.day_type}
-          </span>
-        ) : null}
+            {todayThing?.kind === 'program_day' ? (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <span className="badge">
+                  {todayThing.program_day?.status === 'done'
+                    ? 'genomförd'
+                    : todayThing.program_day?.day_type}
+                </span>
+                {todayThing.program_day?.status === 'done' && todayThingSummary?.durationLabel ? (
+                  <span className="badge">{todayThingSummary.durationLabel}</span>
+                ) : null}
+                {todayThing.program_day?.status === 'done' && todayThingSummary?.repsLabel ? (
+                  <span className="badge">{todayThingSummary.repsLabel}</span>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
         {todayThing?.kind === 'program_day' ? (
           <>
             {todayThing.program_day?.day_type === 'rest' ? (
-              <p className="empty-state">Vilodag. Kom tillbaka nästa träningsdag.</p>
+              <p className="muted" style={{ margin: '0.25rem 0 0' }}>
+                Vilodag. Kom tillbaka nästa träningsdag.
+              </p>
             ) : todayThing.program_day?.status === 'done' ? (
-                <p className="empty-state">Genomförd. Bra jobbat!</p>
+              <p className="muted" style={{ margin: '0.25rem 0 0' }}>
+                Genomförd.
+                {todayThingSummary?.repsLabel
+                  ? ` ${formatExerciseLabel(todayThingSummary.exercise) || 'Totalt'}: ${
+                      todayThingSummary.repsLabel
+                    }.`
+                  : ''}
+                {' '}Bra jobbat!
+              </p>
             ) : todayThing.program_day?.day_type === 'workout' ? (
               <div className="actions-row">
                 <button
@@ -1138,7 +1197,7 @@ function App() {
               )}
             </>
           ) : todayThingStatus === 'error' ? (
-            <p className="empty-state">Kunde inte ladda dagens plan.</p>
+            <p className="muted" style={{ margin: 0 }}>Kunde inte ladda dagens plan.</p>
           ) : (
             <div className="actions-row">
               <button className="ghost" onClick={() => setView('programs')}>
@@ -1176,52 +1235,6 @@ function App() {
           </section>
         )}
 
-        <section className="panel hero start-panel">
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">Ditt träningspass</p>
-              <h2>{selectedProgram?.title || 'Välj ett pass'}</h2>
-            </div>
-            <div className="quick-select-container">
-              <button className="ghost" onClick={() => setShowQuickSelect(!showQuickSelect)}>
-                Byt träning ▾
-              </button>
-              {showQuickSelect && (
-                <div className="quick-select-dropdown">
-                  {favoritePrograms.length > 0 && (
-                    <>
-                      <div className="dropdown-label">Favoriter</div>
-                      {favoritePrograms.map((p) => (
-                        <button key={p.id} className="dropdown-item" onClick={() => { selectProgram(p.id); setShowQuickSelect(false); }}>
-                          ★ {p.title}
-                        </button>
-                      ))}
-                      <div className="dropdown-divider" />
-                    </>
-                  )}
-                  <button className="dropdown-item all-programs" onClick={() => { setShowQuickSelect(false); setView('programs'); }}>
-                    Visa alla pass →
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {selectedProgram ? (
-            <WorkoutTimer
-              program={{ ...selectedProgram, rounds: selectedProgram.rounds || 1 }}
-              exercises={selectedExercises.length ? selectedExercises : defaultExercises}
-              stats={selectedProgramStats}
-              onComplete={handleSessionComplete}
-            />
-          ) : (
-            <div className="no-program-selected">
-              <p>Inget pass valt</p>
-              <button onClick={() => setView('programs')}>Välj träningspass</button>
-            </div>
-          )}
-        </section>
-
         {(() => {
           const today = new Date().toISOString().slice(0, 10);
           const todaySessions = recentSessions.filter(
@@ -1253,6 +1266,65 @@ function App() {
             </section>
           );
         })()}
+
+        <section className="panel hero start-panel">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Ditt träningspass</p>
+              <h2>{selectedProgram?.title || 'Välj ett pass'}</h2>
+            </div>
+            <div className="quick-select-container">
+              <button className="ghost" onClick={() => setShowQuickSelect(!showQuickSelect)}>
+                Byt träning ▾
+              </button>
+              {showQuickSelect && (
+                <div className="quick-select-dropdown">
+                  {favoritePrograms.length > 0 && (
+                    <>
+                      <div className="dropdown-label">Favoriter</div>
+                      {favoritePrograms.map((p) => (
+                        <button
+                          key={p.id}
+                          className="dropdown-item"
+                          onClick={() => {
+                            selectProgram(p.id);
+                            setShowQuickSelect(false);
+                          }}
+                        >
+                          ★ {p.title}
+                        </button>
+                      ))}
+                      <div className="dropdown-divider" />
+                    </>
+                  )}
+                  <button
+                    className="dropdown-item all-programs"
+                    onClick={() => {
+                      setShowQuickSelect(false);
+                      setView('programs');
+                    }}
+                  >
+                    Visa alla pass →
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {selectedProgram ? (
+            <WorkoutTimer
+              program={{ ...selectedProgram, rounds: selectedProgram.rounds || 1 }}
+              exercises={selectedExercises.length ? selectedExercises : defaultExercises}
+              stats={selectedProgramStats}
+              onComplete={handleSessionComplete}
+            />
+          ) : (
+            <div className="no-program-selected">
+              <p>Inget pass valt</p>
+              <button onClick={() => setView('programs')}>Välj träningspass</button>
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );

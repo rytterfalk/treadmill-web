@@ -283,6 +283,14 @@
   margin-bottom: 1rem;
 }
 
+.today-thing-panel.today-thing-compact {
+  padding: 0.9rem 1.05rem;
+}
+
+.today-thing-panel.today-thing-compact .panel-header {
+  margin-bottom: 0.25rem;
+}
+
 .progressive-meta {
   display: flex;
   flex-wrap: wrap;
