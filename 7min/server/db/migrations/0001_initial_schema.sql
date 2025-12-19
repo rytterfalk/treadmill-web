@@ -104,7 +104,7 @@ CREATE TABLE IF NOT EXISTS workout_sessions (
   id TEXT PRIMARY KEY,
   user_id INTEGER NOT NULL,
   template_id TEXT,
-  session_type TEXT NOT NULL DEFAULT 'other' CHECK (session_type IN ('hiit', 'strength', 'run', 'mobility', 'test', 'other', 'treadmill')),
+  session_type TEXT NOT NULL DEFAULT 'other' CHECK (session_type IN ('hiit', 'strength', 'run', 'mobility', 'test', 'other', 'treadmill', 'progressive')),
   started_at TEXT,
   ended_at TEXT,
   duration_sec INTEGER,

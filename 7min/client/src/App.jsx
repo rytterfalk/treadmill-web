@@ -623,6 +623,12 @@ function App() {
     };
   }, [lastWorkout]);
 
+  function formatExerciseLabel(exerciseKey) {
+    const key = String(exerciseKey || '').trim().toLowerCase();
+    if (!key) return '';
+    return key.charAt(0).toUpperCase() + key.slice(1);
+  }
+
   if (!user) {
     return (
       <div className="auth-hero">
@@ -734,11 +740,24 @@ function App() {
                   <p className="eyebrow">Genomförd</p>
                   <h3>{lastWorkoutSummary.label}</h3>
                 </div>
-                {lastWorkoutSummary.durationLabel ? (
-                  <span className="badge">{lastWorkoutSummary.durationLabel}</span>
-                ) : null}
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  {lastWorkoutSummary.durationLabel ? (
+                    <span className="badge">{lastWorkoutSummary.durationLabel}</span>
+                  ) : null}
+                  {lastWorkoutSummary.repsLabel ? (
+                    <span className="badge">{lastWorkoutSummary.repsLabel}</span>
+                  ) : null}
+                </div>
               </div>
-              <p className="muted">Senaste passet är klart. Bra jobbat!</p>
+              <p className="muted">
+                Senaste passet är klart.{' '}
+                {lastWorkoutSummary.repsLabel
+                  ? `${formatExerciseLabel(lastWorkoutSummary.exercise) || 'Totalt'}: ${
+                      lastWorkoutSummary.repsLabel
+                    }. `
+                  : ''}
+                Bra jobbat!
+              </p>
             </section>
           )}
 
@@ -1136,11 +1155,24 @@ function App() {
                 <p className="eyebrow">Genomförd</p>
                 <h3>{lastWorkoutSummary.label}</h3>
               </div>
-              {lastWorkoutSummary.durationLabel ? (
-                <span className="badge">{lastWorkoutSummary.durationLabel}</span>
-              ) : null}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                {lastWorkoutSummary.durationLabel ? (
+                  <span className="badge">{lastWorkoutSummary.durationLabel}</span>
+                ) : null}
+                {lastWorkoutSummary.repsLabel ? (
+                  <span className="badge">{lastWorkoutSummary.repsLabel}</span>
+                ) : null}
+              </div>
             </div>
-            <p className="muted">Senaste passet är klart. Bra jobbat!</p>
+            <p className="muted">
+              Senaste passet är klart.{' '}
+              {lastWorkoutSummary.repsLabel
+                ? `${formatExerciseLabel(lastWorkoutSummary.exercise) || 'Totalt'}: ${
+                    lastWorkoutSummary.repsLabel
+                  }. `
+                : ''}
+              Bra jobbat!
+            </p>
           </section>
         )}
 
