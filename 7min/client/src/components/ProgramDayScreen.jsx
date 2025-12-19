@@ -24,6 +24,10 @@ function ProgramDayScreen({ programDayId }) {
   const [restRemaining, setRestRemaining] = useState(0);
   const restTimerRef = useRef(null);
 
+  const plan = todayData?.program_day?.plan || null;
+  const program = todayData?.program || null;
+  const dayType = todayData?.program_day?.day_type || null;
+
   const isSubmax = plan?.method === 'submax';
   const isLadder = plan?.method === 'ladder';
 
@@ -99,10 +103,6 @@ function ProgramDayScreen({ programDayId }) {
       cancelled = true;
     };
   }, [programDayId]);
-
-  const plan = todayData?.program_day?.plan || null;
-  const program = todayData?.program || null;
-  const dayType = todayData?.program_day?.day_type || null;
 
   const entries = useMemo(() => {
     if (!plan) return [];
