@@ -21,8 +21,10 @@ function ProgramDayScreen({ programDayId }) {
   const [mode, setMode] = useState('idle'); // idle | work | rest | summary
   const [currentSet, setCurrentSet] = useState(0);
   const [restRemaining, setRestRemaining] = useState(0);
+  const [restTotal, setRestTotal] = useState(0);
   const restTimerRef = useRef(null);
   const startTimeRef = useRef(null);
+  const lastRestRef = useRef(null);
 
   const plan = todayData?.program_day?.plan || null;
   const program = todayData?.program || null;
@@ -141,6 +143,8 @@ function ProgramDayScreen({ programDayId }) {
     });
   }, [entries]);
 
+  const restPercent = restTotal > 0 ? Math.max(0, Math.min(1, restRemaining / restTotal)) : 0;
+
   useEffect(() => {
     return () => {
       if (restTimerRef.current) {
@@ -148,6 +152,30 @@ function ProgramDayScreen({ programDayId }) {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (mode !== 'rest') return;
+    const current = restRemaining;
+    const last = lastRestRef.current;
+    if (last != null && current <= 3 && last > 3) {
+      try {
+        const ctx = new AudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = 880;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        gain.gain.setValueAtTime(0.18, ctx.currentTime);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.2);
+        osc.onended = () => ctx.close();
+      } catch (_) {
+        /* ignore */
+      }
+    }
+    lastRestRef.current = current;
+  }, [mode, restRemaining]);
 
   function startWorkout() {
     if (!entries.length) return;
@@ -158,8 +186,10 @@ function ProgramDayScreen({ programDayId }) {
 
   function startRest(seconds) {
     const total = Math.max(0, Math.round(seconds || 0));
+    setRestTotal(total);
     setRestRemaining(total);
     setMode('rest');
+    lastRestRef.current = total;
     if (restTimerRef.current) clearInterval(restTimerRef.current);
     if (total <= 0) {
       setMode('work');
@@ -285,6 +315,12 @@ function ProgramDayScreen({ programDayId }) {
 .actions button{flex:1;min-height:48px}
 .ghost{background:rgba(51,51,51,.9);border:1px solid #3a3a3a;color:#fff}
 .primary{background:linear-gradient(135deg,#f7c72b 0%,#f59e0b 100%);border:none;color:#1a1a1a;font-weight:700}
+.rest-layout{display:flex;align-items:center;gap:12px}
+.rest-ring{width:120px;height:120px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(#f7c72b 0deg,rgba(255,255,255,0.08) 0deg)}
+.rest-ring-inner{width:96px;height:96px;border-radius:50%;background:rgba(0,0,0,0.6);display:grid;place-items:center;text-align:center;padding:6px}
+.rest-time{font-size:1.6rem;font-weight:800}
+.rest-label{font-size:.85rem;color:#b0b0b0}
+.rest-meta .small{font-size:.9rem}
 `;
 
   if (status === 'loading') {
@@ -429,17 +465,24 @@ function ProgramDayScreen({ programDayId }) {
 
                       {mode === 'rest' && (
                         <div className="workout-card">
-                          <div className="workout-row">
-                            <div>
-                              <div>Vila</div>
-                              <div className="muted">Nästa set: {currentSet + 1}/{entries.length}</div>
+                          <div className="rest-layout">
+                            <div
+                              className="rest-ring"
+                              style={{
+                                background: `conic-gradient(#f7c72b ${restPercent * 360}deg, rgba(255,255,255,0.08) 0deg)`,
+                              }}
+                            >
+                              <div className="rest-ring-inner">
+                                <div className="rest-time">{restRemaining}s</div>
+                                <div className="rest-label">Vila</div>
+                              </div>
                             </div>
-                            <div style={{ fontSize: '1.4rem', fontWeight: 700 }}>
-                              {restRemaining}s
+                            <div className="rest-meta">
+                              <div className="muted">Nästa: {currentSet + 1}/{entries.length}</div>
+                              <div className="muted small">
+                                Vilan ökar +20s om du inte klarade {plan.method === 'submax' ? 'setet' : 'steget'}.
+                              </div>
                             </div>
-                          </div>
-                          <div className="muted">
-                            Vilan ökar +20s om du inte klarade {plan.method === 'submax' ? 'setet' : 'steget'}.
                           </div>
                         </div>
                       )}

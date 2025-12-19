@@ -536,7 +536,7 @@ router.post('/program-days/:id/complete', authRequired, (req, res) => {
       db.prepare(
         `INSERT INTO workout_sessions
           (id, user_id, template_id, session_type, started_at, ended_at, duration_sec, notes, source, treadmill_state_json, program_day_id)
-         VALUES (?, ?, NULL, 'strength', ?, ?, ?, '', 'manual', NULL, ?)`
+         VALUES (?, ?, NULL, 'progressive', ?, ?, ?, '', 'manual', NULL, ?)`
       ).run(workoutId, req.user.id, startIso, endIso, durationSec, row.day_id);
     }
 

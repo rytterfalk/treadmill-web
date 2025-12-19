@@ -432,6 +432,20 @@ app.get('/api/sessions/:id', authRequired, (req, res) => {
   res.json({ session });
 });
 
+app.get('/api/workout-sessions/recent', authRequired, (req, res) => {
+  const limit = Math.max(1, Math.min(50, Number(req.query.limit) || 1));
+  const rows = db
+    .prepare(
+      `SELECT id, user_id, template_id, session_type, started_at, ended_at, duration_sec, notes, source, treadmill_state_json, program_day_id, created_at
+       FROM workout_sessions
+       WHERE user_id = ?
+       ORDER BY COALESCE(started_at, ended_at, created_at) DESC
+       LIMIT ?`
+    )
+    .all(req.user.id, limit);
+  res.json({ workouts: rows });
+});
+
 app.use('/api/calendar', calendarRouter);
 app.use('/api', progressiveRouter);
 

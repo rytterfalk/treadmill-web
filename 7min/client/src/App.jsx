@@ -103,6 +103,7 @@ function App() {
   const [showCreateTypePicker, setShowCreateTypePicker] = useState(false);
   const [todayThing, setTodayThing] = useState(null);
   const [todayThingStatus, setTodayThingStatus] = useState('idle');
+  const [lastWorkout, setLastWorkout] = useState(null);
   const [progressivePrograms, setProgressivePrograms] = useState([]);
   const [selectedProgressiveProgramId, setSelectedProgressiveProgramId] = useState(null);
   const [progressiveDays, setProgressiveDays] = useState([]);
@@ -159,6 +160,7 @@ function App() {
     if (!user) return;
     if (view !== 'dashboard') return;
     loadTodayThing();
+    loadLastWorkout();
   }, [user, view]);
 
   useEffect(() => {
@@ -167,6 +169,7 @@ function App() {
       loadWeekBars();
       loadWeekSessions();
       loadProgressivePrograms();
+      loadLastWorkout();
     }
   }, [user, view, calendarRange.from, calendarRange.to]);
 
@@ -484,6 +487,15 @@ function App() {
     }
   }
 
+  async function loadLastWorkout() {
+    try {
+      const data = await api('/api/workout-sessions/recent?limit=1');
+      setLastWorkout((data.workouts || [])[0] || null);
+    } catch (err) {
+      // ignore
+    }
+  }
+
   async function loadTodayThing() {
     setTodayThingStatus('loading');
     try {
@@ -630,6 +642,31 @@ function App() {
 
   const equipmentSlugs = userEquipment.map((e) => e.slug);
 
+  const lastWorkoutSummary = useMemo(() => {
+    if (!lastWorkout) return null;
+    const sec = Number(lastWorkout.duration_sec);
+    let durationLabel = '';
+    if (Number.isFinite(sec) && sec > 0) {
+      durationLabel = `${Math.floor(sec / 60)} min ${sec % 60 || 0}s`;
+    } else if (lastWorkout.started_at && lastWorkout.ended_at) {
+      const s = new Date(lastWorkout.started_at);
+      const e = new Date(lastWorkout.ended_at);
+      const sec2 = Math.max(0, Math.round((e - s) / 1000));
+      durationLabel = `${Math.floor(sec2 / 60)} min ${sec2 % 60 || 0}s`;
+    }
+    const label =
+      lastWorkout.session_type === 'progressive'
+        ? 'Progressivt'
+        : lastWorkout.session_type === 'hiit'
+          ? 'HIIT'
+          : 'Pass';
+    return {
+      label,
+      durationLabel,
+      sessionType: lastWorkout.session_type,
+      id: lastWorkout.id,
+    };
+  }, [lastWorkout]);
   if (view === 'calendar') {
     // Filter sessions by selected day if a day is selected
     const filteredSessions = selectedProgressDate
@@ -672,6 +709,21 @@ function App() {
               onSelectDate={setSelectedProgressDate}
             />
           </section>
+
+          {lastWorkoutSummary && (
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Genomförd</p>
+                  <h3>{lastWorkoutSummary.label}</h3>
+                </div>
+                {lastWorkoutSummary.durationLabel ? (
+                  <span className="badge">{lastWorkoutSummary.durationLabel}</span>
+                ) : null}
+              </div>
+              <p className="muted">Senaste passet är klart. Bra jobbat!</p>
+            </section>
+          )}
 
           <section className="panel">
             <div className="panel-header">
@@ -1006,7 +1058,9 @@ function App() {
               </h3>
             </div>
             {todayThing?.kind === 'program_day' ? (
-              <span className="badge">{todayThing.program_day?.day_type}</span>
+              <span className="badge">
+                {todayThing.program_day?.status === 'done' ? 'genomförd' : todayThing.program_day?.day_type}
+              </span>
             ) : null}
           </div>
 
@@ -1014,6 +1068,8 @@ function App() {
             <>
               {todayThing.program_day?.day_type === 'rest' ? (
                 <p className="empty-state">Vilodag. Kom tillbaka nästa träningsdag.</p>
+              ) : todayThing.program_day?.status === 'done' ? (
+                <p className="empty-state">Genomförd. Bra jobbat!</p>
               ) : todayThing.program_day?.day_type === 'workout' ? (
                 <div className="actions-row">
                   <button
@@ -1047,6 +1103,21 @@ function App() {
             </div>
           )}
         </section>
+
+        {lastWorkoutSummary && (
+          <section className="panel today-thing-panel">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Genomförd</p>
+                <h3>{lastWorkoutSummary.label}</h3>
+              </div>
+              {lastWorkoutSummary.durationLabel ? (
+                <span className="badge">{lastWorkoutSummary.durationLabel}</span>
+              ) : null}
+            </div>
+            <p className="muted">Senaste passet är klart. Bra jobbat!</p>
+          </section>
+        )}
 
         <section className="panel hero start-panel">
           <div className="panel-header">

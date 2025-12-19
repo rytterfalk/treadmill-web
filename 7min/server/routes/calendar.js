@@ -13,6 +13,7 @@ const POINTS_CONFIG = {
     hiit: 1.4,
     mobility: 0.6,
     test: 0.3,
+    progressive: 3.0,
     other: 1.0,
   },
 };
@@ -23,6 +24,7 @@ const ICONS = {
   strength: 'dumbbell',
   hiit: 'bolt',
   test: 'beaker',
+  progressive: 'dumbbell',
 };
 
 const allowedTypes = new Set(Object.keys(POINTS_CONFIG.multipliers));
