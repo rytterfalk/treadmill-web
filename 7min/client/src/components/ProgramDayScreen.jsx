@@ -170,7 +170,7 @@ function ProgramDayScreen({ programDayId }) {
         osc.start();
         osc.stop(ctx.currentTime + 0.2);
         osc.onended = () => ctx.close();
-      } catch (_) {
+      } catch {
         /* ignore */
       }
     }
@@ -223,8 +223,8 @@ function ProgramDayScreen({ programDayId }) {
       baseRest = ladderRest;
     }
 
-    const restBoost = actual < target ? 20 : 0;
-    const restSeconds = Math.min(240, Number(baseRest || 0) + restBoost);
+    const restBoost = isSubmax ? 0 : actual < target ? 20 : 0;
+    const restSeconds = Math.max(0, Math.round(Number(baseRest || 0) + restBoost));
 
     const nextIndex = currentSet + 1;
     if (nextIndex >= entries.length) {
@@ -437,8 +437,8 @@ function ProgramDayScreen({ programDayId }) {
                               <div>Set {currentSet + 1} / {entries.length}</div>
                               <div className="muted">
                                 {plan.method === 'submax'
-                                  ? `Target: ${entries[currentSet]?.target}`
-                                  : `Steg: ${entries[currentSet]?.target}`}
+                                  ? `Target: ${entries[currentSet]?.target} • Vila: ${plan?.sets?.[currentSet]?.rest_sec ?? '—'}s`
+                                  : `Steg: ${entries[currentSet]?.target} • Vila: ${plan?.ladders?.[0]?.rest_between_steps_sec ?? '—'}s`}
                               </div>
                             </div>
                             <input
@@ -480,7 +480,9 @@ function ProgramDayScreen({ programDayId }) {
                             <div className="rest-meta">
                               <div className="muted">Nästa: {currentSet + 1}/{entries.length}</div>
                               <div className="muted small">
-                                Vilan ökar +20s om du inte klarade {plan.method === 'submax' ? 'setet' : 'steget'}.
+                                {plan.method === 'submax'
+                                  ? 'Fast vila per pass (justeras till nästa pass baserat på utfallet).'
+                                  : 'Vilan ökar +20s om du inte klarade steget.'}
                               </div>
                             </div>
                           </div>

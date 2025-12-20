@@ -35,18 +35,17 @@ function clampInt(value, min, max) {
   return Math.max(min, Math.min(max, i));
 }
 
-function createSubmaxPlan(exerciseKey, workReps) {
+function clampRestSec(value) {
+  return clampInt(value, 15, 600);
+}
+
+function createSubmaxPlan(exerciseKey, workReps, restSec) {
   const reps = clampInt(workReps, 1, 1000) || 1;
+  const rest = clampRestSec(restSec) || 150;
   return {
     method: 'submax',
     exercise_key: exerciseKey,
-    sets: [
-      { target_reps: reps, rest_sec: 90 },
-      { target_reps: reps, rest_sec: 90 },
-      { target_reps: reps, rest_sec: 90 },
-      { target_reps: reps, rest_sec: 90 },
-      { target_reps: reps, rest_sec: 120 },
-    ],
+    sets: Array.from({ length: 5 }, () => ({ target_reps: reps, rest_sec: rest })),
     notes: 'Submax volym. Stoppa 1–2 reps innan failure.',
   };
 }
@@ -80,7 +79,15 @@ function initialStateFromTestMax({ method, exerciseKey, testMax }) {
   const max = clampInt(testMax, 1, 1000) || 1;
   if (method === 'submax') {
     const workReps = Math.max(1, Math.round(max * 0.7));
-    return { method, exercise_key: exerciseKey, test_max: max, work_reps: workReps, version: 1 };
+    return {
+      method,
+      exercise_key: exerciseKey,
+      test_max: max,
+      work_reps: workReps,
+      rest_sec: 150,
+      drop_streak: 0,
+      version: 2,
+    };
   }
   const top = Math.max(3, Math.min(12, Math.round(max * 0.6)));
   return { method, exercise_key: exerciseKey, test_max: max, top, version: 1 };
@@ -88,7 +95,9 @@ function initialStateFromTestMax({ method, exerciseKey, testMax }) {
 
 function planForWorkout(state) {
   if (!state || !state.method || !state.exercise_key) return null;
-  if (state.method === 'submax') return createSubmaxPlan(state.exercise_key, state.work_reps);
+  if (state.method === 'submax') {
+    return createSubmaxPlan(state.exercise_key, state.work_reps, state.rest_sec);
+  }
   if (state.method === 'ladder') return createLadderPlan(state.exercise_key, state.top);
   return null;
 }
@@ -448,18 +457,115 @@ function sumInt(values) {
   return values.reduce((sum, v) => sum + (Number(v) || 0), 0);
 }
 
-function computeSubmaxNextWorkReps({ testMax, plan, result, currentWorkReps }) {
-  const target = sumInt((plan?.sets || []).map((s) => s.target_reps));
-  const actual = sumInt((result?.sets || []).map((s) => s.actual_reps));
+function analyzeSubmaxSession({ plan, result }) {
+  const targets = Array.isArray(plan?.sets)
+    ? plan.sets.map((s) => clampInt(s?.target_reps, 0, 1000) || 0)
+    : [];
+  const actuals = Array.isArray(result?.sets)
+    ? result.sets.map((s) => clampInt(s?.actual_reps, 0, 1000) || 0)
+    : [];
 
-  if (!target) return clampInt(currentWorkReps, 1, testMax) || 1;
-  const ratio = actual / target;
+  const setCount = Math.min(targets.length, actuals.length);
+  const t = targets.slice(0, setCount);
+  const a = actuals.slice(0, setCount);
 
-  let next = Number(currentWorkReps) || 1;
-  if (ratio >= 0.9) next += 1;
-  else if (ratio < 0.7) next -= 1;
+  const totalTarget = sumInt(t);
+  const totalActual = sumInt(a);
+  const ratio = totalTarget > 0 ? totalActual / totalTarget : null;
 
-  return clampInt(next, 1, testMax) || 1;
+  const misses = [];
+  for (let i = 0; i < setCount; i += 1) {
+    if ((a[i] || 0) < (t[i] || 0)) misses.push(i);
+  }
+  const missesCount = misses.length;
+  const firstMissIndex = missesCount ? misses[0] : null;
+  const missesOnlyLate = firstMissIndex !== null ? firstMissIndex >= setCount - 2 : false;
+  const allHit = missesCount === 0 && setCount > 0;
+
+  const firstActual = setCount ? a[0] : null;
+  const lastActual = setCount ? a[setCount - 1] : null;
+  const dropRatioLastToFirst =
+    firstActual && lastActual != null ? lastActual / Math.max(1, firstActual) : null;
+
+  return {
+    setCount,
+    targets: t,
+    actuals: a,
+    totalTarget,
+    totalActual,
+    ratio,
+    missesCount,
+    firstMissIndex,
+    missesOnlyLate,
+    allHit,
+    dropRatioLastToFirst,
+  };
+}
+
+function computeSubmaxNextState({ testMax, plan, result, currentWorkReps, currentRestSec, currentDropStreak }) {
+  const analysis = analyzeSubmaxSession({ plan, result });
+
+  const workRepsNow = clampInt(currentWorkReps, 1, testMax) || 1;
+  const restNow = clampRestSec(currentRestSec) || 150;
+  const dropStreakNow = clampInt(currentDropStreak, 0, 99) || 0;
+
+  if (!analysis.setCount || !analysis.totalTarget || analysis.ratio == null) {
+    return {
+      nextWorkReps: workRepsNow,
+      nextRestSec: restNow,
+      nextDropStreak: 0,
+      decision: 'keep',
+      analysis,
+    };
+  }
+
+  const ratio = analysis.ratio;
+  const bigDrop = analysis.dropRatioLastToFirst != null && analysis.dropRatioLastToFirst < 0.75;
+  const willBeDropStreak = bigDrop ? dropStreakNow + 1 : 0;
+
+  const nearMiss =
+    analysis.missesCount > 0 &&
+    analysis.missesCount <= 2 &&
+    analysis.missesOnlyLate &&
+    ratio >= 0.85;
+
+  // Prefer: adjust rest/reps for *next* pass (not mid-session).
+  // Priority:
+  // 1) Persistent big drop (2 passes) => reduce target reps (keep rest stable)
+  // 2) Near-miss late => keep reps, increase baseline rest
+  // 3) Solid completion => increase reps
+  // 4) Early failure / very low ratio => reduce reps
+  let nextWorkReps = workRepsNow;
+  let nextRestSec = restNow;
+  let nextDropStreak = willBeDropStreak;
+  let decision = 'keep';
+
+  if (bigDrop && willBeDropStreak >= 2) {
+    const delta = analysis.dropRatioLastToFirst != null && analysis.dropRatioLastToFirst < 0.65 ? 2 : 1;
+    nextWorkReps = workRepsNow - delta;
+    nextDropStreak = 0;
+    decision = 'decrease_reps_due_to_drop_streak';
+  } else if (nearMiss) {
+    nextRestSec = restNow + 30;
+    decision = 'increase_rest';
+  } else if (analysis.allHit && ratio >= 0.95) {
+    nextWorkReps = workRepsNow + 1;
+    nextDropStreak = 0;
+    decision = 'increase_reps';
+  } else if (ratio < 0.7 || (analysis.firstMissIndex != null && analysis.firstMissIndex <= 2)) {
+    const delta = ratio < 0.55 ? 2 : 1;
+    nextWorkReps = workRepsNow - delta;
+    nextDropStreak = 0;
+    decision = 'decrease_reps';
+  }
+
+  return {
+    nextWorkReps: clampInt(nextWorkReps, 1, testMax) || 1,
+    nextRestSec: clampRestSec(nextRestSec) || 150,
+    nextDropStreak: clampInt(nextDropStreak, 0, 99) || 0,
+    decision,
+    analysis,
+  };
 }
 
 function computeLadderNextTop({ plan, result, currentTop }) {
@@ -511,13 +617,37 @@ router.post('/program-days/:id/complete', authRequired, (req, res) => {
 
   if (method === 'submax') {
     const currentWorkReps = clampInt(state.work_reps, 1, testMax) || 1;
-    const nextWorkReps = computeSubmaxNextWorkReps({
+    const currentRestSec = clampRestSec(state.rest_sec) || 150;
+    const currentDropStreak = clampInt(state.drop_streak, 0, 99) || 0;
+
+    const { nextWorkReps, nextRestSec, nextDropStreak, decision, analysis } = computeSubmaxNextState({
       testMax,
       plan,
       result: resultJson,
       currentWorkReps,
+      currentRestSec,
+      currentDropStreak,
     });
-    nextState = { ...nextState, method, exercise_key: row.exercise_key, work_reps: nextWorkReps };
+
+    nextState = {
+      ...nextState,
+      method,
+      exercise_key: row.exercise_key,
+      work_reps: nextWorkReps,
+      rest_sec: nextRestSec,
+      drop_streak: nextDropStreak,
+      version: Math.max(2, clampInt(state.version, 1, 99) || 1),
+    };
+
+    // Store inference with the completed session for transparency/debugging.
+    resultJson.inference = resultJson.inference || {
+      method: 'submax',
+      ratio: analysis.ratio,
+      drop_ratio_last_to_first: analysis.dropRatioLastToFirst,
+      misses_count: analysis.missesCount,
+      decision,
+      next: { work_reps: nextWorkReps, rest_sec: nextRestSec },
+    };
   } else if (method === 'ladder') {
     const currentTop = clampInt(state.top, 3, 20) || 3;
     const nextTop = computeLadderNextTop({ plan, result: resultJson, currentTop });
