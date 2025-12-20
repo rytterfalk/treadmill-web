@@ -19,7 +19,7 @@ Options:
   --force-install     Always run npm install for 7min and client
   --force-migrate     Always run migrations
   --no-backup         Disable pre-pull backup (default: enabled when --pull is used)
-  --healthcheck URL   Ping URL after restart (default: https://localhost/api/health)
+  --healthcheck URL   Ping URL after restart (default: http://localhost/api/health)
   --no-healthcheck    Skip health check (default: enabled when --restart is used)
   -h, --help          Show this help
 
@@ -195,7 +195,7 @@ if [[ "$RESTART" == "1" ]]; then
 
   if [[ "$HEALTHCHECK_ENABLED" == "1" ]]; then
     if [[ -z "$HEALTHCHECK_URL" ]]; then
-      HEALTHCHECK_URL="https://localhost/api/health"
+      HEALTHCHECK_URL="http://localhost/api/health"
     fi
     echo "[deploy] healthcheck: $HEALTHCHECK_URL"
     ok=0
@@ -211,6 +211,22 @@ if [[ "$RESTART" == "1" ]]; then
       fi
       sleep 1
     done
+    if [[ "$ok" != "1" && "$HEALTHCHECK_URL" == "https://localhost/api/health" ]]; then
+      echo "[deploy] healthcheck failed over HTTPS on localhost; retrying over HTTP."
+      HEALTHCHECK_URL="http://localhost/api/health"
+      echo "[deploy] healthcheck: $HEALTHCHECK_URL"
+      for i in {1..10}; do
+        if need_cmd curl; then
+          if curl -fsS --max-time 3 "$HEALTHCHECK_URL" >/dev/null 2>&1; then ok=1; break; fi
+        elif need_cmd wget; then
+          if wget -q -T 3 -O /dev/null "$HEALTHCHECK_URL" >/dev/null 2>&1; then ok=1; break; fi
+        else
+          ok=1
+          break
+        fi
+        sleep 1
+      done
+    fi
     if [[ "$ok" != "1" ]]; then
       echo "[deploy] healthcheck FAILED (service may be down)."
       echo "[deploy] Tip: sudo journalctl -u 7min.service -n 200 --no-pager"

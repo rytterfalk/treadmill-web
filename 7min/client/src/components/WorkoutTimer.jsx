@@ -61,9 +61,28 @@ function formatSeconds(totalSeconds) {
   return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
+function safeLoadLocalStorage(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch (_err) {
+    return null;
+  }
+}
+
+function safeSetLocalStorage(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (_err) {
+    // ignore
+  }
+}
+
 function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }) {
   const [rounds, setRounds] = useState(1);
-  const [exerciseSeconds, setExerciseSeconds] = useState(''); // optional override for all exercises
+  const [exerciseSeconds, setExerciseSeconds] = useState(() => {
+    // optional override for all exercises, shared across views
+    return safeLoadLocalStorage('7min_exercise_seconds') || '';
+  });
   const [restBetweenExercises, setRestBetweenExercises] = useState(10);
   const [restBetweenRounds, setRestBetweenRounds] = useState(40);
   const voicePlayerRef = useRef(null);
@@ -229,9 +248,16 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
     setExerciseSeconds((prev) => {
       if (prev !== '') return prev;
       const base = Math.round(Number(exercises[0]?.durationSeconds) || 0);
-      return base > 0 ? String(base) : '';
+      const next = base > 0 ? String(base) : '';
+      if (next) safeSetLocalStorage('7min_exercise_seconds', next);
+      return next;
     });
   }, [exercises]);
+
+  useEffect(() => {
+    if (exerciseSeconds === '') return;
+    safeSetLocalStorage('7min_exercise_seconds', String(exerciseSeconds));
+  }, [exerciseSeconds]);
 
   // Play audio at the START of rest/prep periods (as preparation for next exercise)
   useEffect(() => {
@@ -689,10 +715,13 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
                 const val = e.target.value;
                 if (val === '') {
                   setExerciseSeconds('');
+                  safeSetLocalStorage('7min_exercise_seconds', '');
                   return;
                 }
                 const num = Number(val);
-                setExerciseSeconds(String(Math.max(1, Number.isNaN(num) ? 30 : Math.round(num))));
+                const next = String(Math.max(1, Number.isNaN(num) ? 30 : Math.round(num)));
+                setExerciseSeconds(next);
+                safeSetLocalStorage('7min_exercise_seconds', next);
               }}
             />
           </label>
