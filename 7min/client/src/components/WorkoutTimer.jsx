@@ -686,7 +686,31 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
         </>
       )}
 
-      {!compact && (
+      {compact ? (
+        <div className="inline compact timer-config">
+          <label>
+            Tid per moment (s)
+            <input
+              type="number"
+              min="1"
+              value={exerciseSeconds}
+              disabled={status !== 'idle'}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '') {
+                  setExerciseSeconds('');
+                  safeSetLocalStorage('7min_exercise_seconds', '');
+                  return;
+                }
+                const num = Number(val);
+                const next = String(Math.max(1, Number.isNaN(num) ? 30 : Math.round(num)));
+                setExerciseSeconds(next);
+                safeSetLocalStorage('7min_exercise_seconds', next);
+              }}
+            />
+          </label>
+        </div>
+      ) : (
         <div className="inline compact timer-config">
           <label>
             Varv
@@ -694,6 +718,7 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
               type="number"
               min="1"
               value={rounds}
+              disabled={status !== 'idle'}
               onChange={(e) => {
                 const val = e.target.value;
                 if (val === '') {
@@ -711,6 +736,7 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
               type="number"
               min="1"
               value={exerciseSeconds}
+              disabled={status !== 'idle'}
               onChange={(e) => {
                 const val = e.target.value;
                 if (val === '') {
@@ -731,6 +757,7 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
               type="number"
               min="0"
               value={restBetweenExercises}
+              disabled={status !== 'idle'}
               onChange={(e) => {
                 const val = e.target.value;
                 if (val === '') {
@@ -748,6 +775,7 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
               type="number"
               min="0"
               value={restBetweenRounds}
+              disabled={status !== 'idle'}
               onChange={(e) => {
                 const val = e.target.value;
                 if (val === '') {
