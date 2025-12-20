@@ -39,6 +39,7 @@ function ProgramEditor({ prefill, onSave }) {
   const [rounds, setRounds] = useState(2);
   const [isPublic, setIsPublic] = useState(false);
   const [exercises, setExercises] = useState(starterExercises);
+  const [secondsPerMoment, setSecondsPerMoment] = useState(30);
   const [draggingIdx, setDraggingIdx] = useState(null);
   const [recordingIdx, setRecordingIdx] = useState(null); // "pause-0" | "half-0" | null
   const [status, setStatus] = useState('');
@@ -72,12 +73,26 @@ function ProgramEditor({ prefill, onSave }) {
           }))
         : starterExercises
     );
+    const base = Math.round(Number(prefill.exercises?.[0]?.durationSeconds) || 30);
+    setSecondsPerMoment(base > 0 ? base : 30);
   }, [prefillKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function setExercisePatch(index, patch) {
     setExercises((list) =>
       list.map((item, idx) => (idx === index ? { ...item, ...patch } : item))
     );
+  }
+
+  function applySecondsToAll(nextSeconds) {
+    const n = Math.max(1, Math.round(Number(nextSeconds) || 30));
+    setExercises((list) =>
+      list.map((ex) => ({
+        ...ex,
+        durationSeconds: n,
+        timePercent: 100,
+      }))
+    );
+    setStatus(`Uppdaterade alla moment till ${n}s (100%).`);
   }
 
   function updateExercise(index, field, value) {
@@ -89,7 +104,7 @@ function ProgramEditor({ prefill, onSave }) {
       ...list,
       {
         title: 'Nytt moment',
-        durationSeconds: 30,
+        durationSeconds: Math.max(1, Math.round(Number(secondsPerMoment) || 30)),
         restSeconds: 10,
         timePercent: 100,
         notes: '',
@@ -342,6 +357,26 @@ function ProgramEditor({ prefill, onSave }) {
             <span className="exercise-count">{exercises.length} moment</span>
           </div>
 
+          <div className="editor-row" style={{ gap: '0.75rem', alignItems: 'flex-end' }}>
+            <label className="editor-field" style={{ maxWidth: 220 }}>
+              <span className="field-label">Sekunder per moment</span>
+              <input
+                type="number"
+                min="1"
+                value={secondsPerMoment}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '') return;
+                  const n = Math.max(1, Math.round(Number(val) || 30));
+                  setSecondsPerMoment(n);
+                }}
+              />
+            </label>
+            <button type="button" className="ghost" onClick={() => applySecondsToAll(secondsPerMoment)}>
+              Använd för alla
+            </button>
+          </div>
+
           <div className="exercise-list-editor">
             {exercises.map((ex, idx) => (
               <div
@@ -367,6 +402,15 @@ function ProgramEditor({ prefill, onSave }) {
 
                 <div className="exercise-card-body">
                   <div className="exercise-settings">
+                    <label className="setting-field">
+                      <span>Sekunder</span>
+                      <input
+                        type="number"
+                        min="1"
+                        value={ex.durationSeconds || 30}
+                        onChange={(e) => updateExercise(idx, 'durationSeconds', Math.max(1, Number(e.target.value) || 30))}
+                      />
+                    </label>
                     <label className="setting-field">
                       <span>Tid</span>
                       <select
