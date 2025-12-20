@@ -72,7 +72,10 @@ function aggregateSessions(sessions) {
       session.ended_at?.slice(0, 10) ||
       session.created_at?.slice(0, 10);
     if (!day) return;
-    const multiplier = POINTS_CONFIG.multipliers[session.session_type] || 1.0;
+    let multiplier = POINTS_CONFIG.multipliers[session.session_type] || 1.0;
+    if (session.session_type === 'progressive' && session.program_method === 'submax') {
+      multiplier = 4.0;
+    }
     const minutes = (Number(session.duration_sec) || 0) / 60;
     const sessionPoints = clampPoints(minutes * multiplier);
     const icon = iconForType(session.session_type);
@@ -109,12 +112,15 @@ router.get('/summary', authRequired, (req, res) => {
 
   const rows = db
     .prepare(
-      `SELECT id, user_id, template_id, session_type, started_at, ended_at, duration_sec, notes, source, created_at,
-              date(COALESCE(started_at, ended_at, created_at)) AS day
-       FROM workout_sessions
-       WHERE user_id = ?
-         AND date(COALESCE(started_at, ended_at, created_at)) BETWEEN date(?) AND date(?)
-       ORDER BY started_at ASC`
+      `SELECT ws.id, ws.user_id, ws.template_id, ws.session_type, ws.started_at, ws.ended_at, ws.duration_sec, ws.notes, ws.source, ws.created_at,
+              pp.method AS program_method,
+              COALESCE(pd.date, date(COALESCE(ws.started_at, ws.ended_at, ws.created_at))) AS day
+       FROM workout_sessions ws
+       LEFT JOIN progressive_program_days pd ON pd.id = ws.program_day_id
+       LEFT JOIN progressive_programs pp ON pp.id = pd.program_id
+       WHERE ws.user_id = ?
+         AND date(COALESCE(pd.date, COALESCE(ws.started_at, ws.ended_at, ws.created_at))) BETWEEN date(?) AND date(?)
+       ORDER BY ws.started_at ASC`
     )
     .all(req.user.id, from, to);
 
@@ -145,12 +151,15 @@ router.get('/weekbars', authRequired, (req, res) => {
 
   const rows = db
     .prepare(
-      `SELECT id, session_type, duration_sec, started_at, ended_at, created_at,
-              date(COALESCE(started_at, ended_at, created_at)) AS day
-       FROM workout_sessions
-       WHERE user_id = ?
-         AND date(COALESCE(started_at, ended_at, created_at)) BETWEEN date(?) AND date(?)
-       ORDER BY started_at ASC`
+      `SELECT ws.id, ws.session_type, ws.duration_sec, ws.started_at, ws.ended_at, ws.created_at,
+              pp.method AS program_method,
+              COALESCE(pd.date, date(COALESCE(ws.started_at, ws.ended_at, ws.created_at))) AS day
+       FROM workout_sessions ws
+       LEFT JOIN progressive_program_days pd ON pd.id = ws.program_day_id
+       LEFT JOIN progressive_programs pp ON pp.id = pd.program_id
+       WHERE ws.user_id = ?
+         AND date(COALESCE(pd.date, COALESCE(ws.started_at, ws.ended_at, ws.created_at))) BETWEEN date(?) AND date(?)
+       ORDER BY ws.started_at ASC`
     )
     .all(req.user.id, dateKey(start), dateKey(end));
 

@@ -63,6 +63,7 @@ function formatSeconds(totalSeconds) {
 
 function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }) {
   const [rounds, setRounds] = useState(1);
+  const [exerciseSeconds, setExerciseSeconds] = useState(''); // optional override for all exercises
   const [restBetweenExercises, setRestBetweenExercises] = useState(10);
   const [restBetweenRounds, setRestBetweenRounds] = useState(40);
   const voicePlayerRef = useRef(null);
@@ -71,6 +72,8 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
   const schedule = useMemo(() => {
     if (!exercises?.length) return [];
     const seq = [];
+    const exOverride = Number(exerciseSeconds);
+    const useOverride = Number.isFinite(exOverride) && exOverride > 0;
     const rbe = Math.max(0, Number(restBetweenExercises) || 0);
     const rbr = Math.max(0, Number(restBetweenRounds) || 0);
     const runRounds = Math.max(1, Number(rounds) || 1);
@@ -103,7 +106,7 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
         seq.push({
           type: 'exercise',
           label: ex.title || `Moment ${idx + 1}`,
-          duration: Number(ex.durationSeconds) || 30,
+          duration: useOverride ? Math.round(exOverride) : Number(ex.durationSeconds) || 30,
           rest: rbe,
           round: round + 1,
           notes: ex.notes || '',
@@ -141,7 +144,7 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
       }
     }
     return seq;
-  }, [exercises, rounds, restBetweenExercises, restBetweenRounds]);
+  }, [exercises, rounds, exerciseSeconds, restBetweenExercises, restBetweenRounds]);
 
   const scheduleKey = useMemo(
     () =>
@@ -220,6 +223,15 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
     setCountdown(3);
     lastAudioPlayedRef.current = null;
   }, [scheduleKey]);
+
+  useEffect(() => {
+    if (!exercises?.length) return;
+    setExerciseSeconds((prev) => {
+      if (prev !== '') return prev;
+      const base = Math.round(Number(exercises[0]?.durationSeconds) || 0);
+      return base > 0 ? String(base) : '';
+    });
+  }, [exercises]);
 
   // Play audio at the START of rest/prep periods (as preparation for next exercise)
   useEffect(() => {
@@ -664,6 +676,23 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
                 }
                 const num = Number(val);
                 setRounds(Math.max(1, Number.isNaN(num) ? 1 : num));
+              }}
+            />
+          </label>
+          <label>
+            Tid per moment (s)
+            <input
+              type="number"
+              min="1"
+              value={exerciseSeconds}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '') {
+                  setExerciseSeconds('');
+                  return;
+                }
+                const num = Number(val);
+                setExerciseSeconds(String(Math.max(1, Number.isNaN(num) ? 30 : Math.round(num))));
               }}
             />
           </label>

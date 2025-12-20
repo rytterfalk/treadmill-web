@@ -109,6 +109,7 @@ function App() {
   const [selectedProgressiveProgramId, setSelectedProgressiveProgramId] = useState(null);
   const [progressiveDays, setProgressiveDays] = useState([]);
   const [progressiveStatus, setProgressiveStatus] = useState('idle');
+  const [selectedProgramDayDate, setSelectedProgramDayDate] = useState(null);
 
   // Helper to format duration
   function formatDuration(seconds) {
@@ -161,7 +162,7 @@ function App() {
     if (!user) return;
     if (view !== 'dashboard') return;
     loadTodayThing();
-    loadLastWorkout();
+    loadDaySessions(new Date().toISOString().slice(0, 10));
   }, [user, view]);
 
   useEffect(() => {
@@ -170,7 +171,6 @@ function App() {
       loadWeekBars();
       loadWeekSessions();
       loadProgressivePrograms();
-      loadLastWorkout();
     }
   }, [user, view, calendarRange.from, calendarRange.to]);
 
@@ -400,6 +400,7 @@ function App() {
         }),
       });
       loadSessions();
+      loadDaySessions(new Date().toISOString().slice(0, 10));
       if (view === 'calendar') {
         loadCalendar();
         if (selectedDate) loadDaySessions(selectedDate);
@@ -458,31 +459,17 @@ function App() {
       const from = monday.toISOString().slice(0, 10);
       const to = sunday.toISOString().slice(0, 10);
 
-      const data = await api(`/api/sessions/week?from=${from}&to=${to}`);
-      setWeekSessions(data.sessions || []);
+      const data = await api(`/api/workout-sessions?from=${from}&to=${to}&limit=200`);
+      setWeekSessions(data.workouts || []);
     } catch (err) {
-      // Fallback to recent sessions if week endpoint doesn't exist
-      const data = await api('/api/sessions/recent?limit=20');
-      // Filter to current week
-      const today = new Date();
-      const dayOfWeek = today.getDay();
-      const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-      const monday = new Date(today);
-      monday.setDate(today.getDate() + mondayOffset);
-      monday.setHours(0, 0, 0, 0);
-
-      const weekOnly = (data.sessions || []).filter(s => {
-        const sessionDate = new Date(s.completed_at);
-        return sessionDate >= monday;
-      });
-      setWeekSessions(weekOnly);
+      setWeekSessions([]);
     }
   }
 
   async function loadDaySessions(date) {
     try {
-      const data = await api(`/api/sessions?date=${date}`);
-      setDaySessions(data.sessions || []);
+      const data = await api(`/api/workout-sessions?date=${date}&limit=200`);
+      setDaySessions(data.workouts || []);
     } catch (err) {
       setStatus(err.message);
     }
@@ -542,6 +529,7 @@ function App() {
 
     const data = await api(`/api/progressive-programs/${programId}?from=${fromIso}&to=${toIso}`);
     setProgressiveDays(data.days || []);
+    setSelectedProgramDayDate(null);
     return data.program;
   }
 
@@ -572,15 +560,38 @@ function App() {
     return next?.date || null;
   }, [progressiveDays]);
 
-  const weekRows = useMemo(() => {
-    const today = new Date();
-    const monday = startOfWeekIso(today);
+  const upcomingRows = useMemo(() => {
+    const todayIso = new Date().toISOString().slice(0, 10);
     const byDate = new Map(progressiveDays.map((d) => [d.date, d]));
-    return Array.from({ length: 7 }, (_, i) => {
-      const date = addDaysIso(monday, i);
+    return Array.from({ length: 14 }, (_, i) => {
+      const date = addDaysIso(todayIso, i);
       return { date, day: byDate.get(date) || null };
     });
   }, [progressiveDays]);
+
+  const selectedProgramDay = useMemo(() => {
+    if (!selectedProgramDayDate) return null;
+    return progressiveDays.find((d) => d.date === selectedProgramDayDate) || null;
+  }, [progressiveDays, selectedProgramDayDate]);
+
+  function programDayPlanSummary(day) {
+    if (!day?.plan) return '';
+    if (day.plan.method === 'submax') {
+      const sets = Array.isArray(day.plan.sets) ? day.plan.sets : [];
+      const reps = sets.length ? Number(sets[0]?.target_reps) || 0 : 0;
+      const rest = sets.length ? Number(sets[0]?.rest_sec) || 0 : 0;
+      return `${sets.length} set • ${reps || '—'} reps • vila ${rest || '—'}s`;
+    }
+    if (day.plan.method === 'ladder') {
+      const steps = day.plan.ladders?.[0]?.steps || [];
+      const top = steps.length ? steps[steps.length - 1] : null;
+      return `Ladder 1–${top || '—'} • ${steps.length} steg`;
+    }
+    if (day.plan.method === 'test') {
+      return 'Max-test (reps)';
+    }
+    return '';
+  }
 
   const lastWorkoutSummary = useMemo(() => {
     if (!lastWorkout) return null;
@@ -641,6 +652,44 @@ function App() {
       return `${Math.floor(sec2 / 60)} min ${sec2 % 60 || 0}s`;
     }
     return '';
+  }
+
+  function workoutDayKey(workout) {
+    return (
+      workout?.day ||
+      workout?.started_at?.slice(0, 10) ||
+      workout?.ended_at?.slice(0, 10) ||
+      workout?.created_at?.slice(0, 10) ||
+      ''
+    );
+  }
+
+  function totalRepsFromWorkout(workout) {
+    const r = workout?.program_day_result_json || null;
+    if (!r) return 0;
+    if (Array.isArray(r.sets)) {
+      return r.sets.reduce((sum, s) => sum + (Number(s.actual_reps) || 0), 0);
+    }
+    if (Array.isArray(r.steps)) {
+      return r.steps.reduce((sum, s) => sum + (Number(s) || 0), 0);
+    }
+    return 0;
+  }
+
+  function workoutTitle(workout) {
+    const type = workout?.session_type || 'other';
+    if (type === 'progressive') {
+      const exercise = formatExerciseLabel(workout?.program_exercise_key) || 'Progressivt';
+      const method = String(workout?.program_method || 'progressivt');
+      return `${exercise} • ${method}`;
+    }
+    if (type === 'hiit') return 'HIIT';
+    if (type === 'strength') return 'Styrka';
+    if (type === 'run') return 'Löpning';
+    if (type === 'treadmill') return 'Löpband';
+    if (type === 'mobility') return 'Rörlighet';
+    if (type === 'test') return 'Test';
+    return 'Pass';
   }
 
   const todayThingSummary = useMemo(() => {
@@ -732,7 +781,7 @@ function App() {
   if (view === 'calendar') {
     // Filter sessions by selected day if a day is selected
     const filteredSessions = selectedProgressDate
-      ? weekSessions.filter((s) => s.completed_at?.slice(0, 10) === selectedProgressDate)
+      ? weekSessions.filter((s) => workoutDayKey(s) === selectedProgressDate)
       : weekSessions;
 
     // Format selected day for display
@@ -772,34 +821,6 @@ function App() {
             />
           </section>
 
-          {lastWorkoutLoaded && lastWorkoutSummary && (
-            <section className="panel">
-              <div className="panel-header">
-                <div>
-                  <p className="eyebrow">Genomförd</p>
-                  <h3>{lastWorkoutSummary.label}</h3>
-                </div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                  {lastWorkoutSummary.durationLabel ? (
-                    <span className="badge">{lastWorkoutSummary.durationLabel}</span>
-                  ) : null}
-                  {lastWorkoutSummary.repsLabel ? (
-                    <span className="badge">{lastWorkoutSummary.repsLabel}</span>
-                  ) : null}
-                </div>
-              </div>
-              <p className="muted">
-                Senaste passet är klart.{' '}
-                {lastWorkoutSummary.repsLabel
-                  ? `${formatExerciseLabel(lastWorkoutSummary.exercise) || 'Totalt'}: ${
-                      lastWorkoutSummary.repsLabel
-                    }. `
-                  : ''}
-                Bra jobbat!
-              </p>
-            </section>
-          )}
-
           <section className="panel">
             <div className="panel-header">
               <div>
@@ -811,25 +832,27 @@ function App() {
             {filteredSessions?.length ? (
               <div className="session-list">
                 {filteredSessions.map((s) => {
-                  const d = new Date(s.completed_at);
-                  const duration = formatDuration(s.duration_seconds);
-                  const detail = [];
-                  if (s.session_type === 'progressive') detail.push('Progressivt');
-                  if (s.session_type === 'hiit') detail.push('HIIT');
+                  const iso = s.started_at || s.ended_at || s.created_at;
+                  const d = iso ? new Date(iso) : null;
+                  const duration =
+                    formatDurationLong(s.duration_sec, s.started_at, s.ended_at) || 'Okänd tid';
+                  const repsTotal = totalRepsFromWorkout(s);
                   return (
                     <div key={s.id} className="session">
-                      <div className="session-title">{s.program_title || (detail[0] || 'Pass')}</div>
+                      <div className="session-title">{workoutTitle(s)}</div>
                       <div className="session-meta">
                         {duration} •{' '}
-                        {d.toLocaleString('sv-SE', {
-                          weekday: 'short',
-                          day: 'numeric',
-                          month: 'short',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
+                        {d
+                          ? d.toLocaleString('sv-SE', {
+                              weekday: 'short',
+                              day: 'numeric',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : '—'}
                       </div>
-                      {detail.length ? <div className="session-meta subtle">{detail.join(' • ')}</div> : null}
+                      {repsTotal ? <div className="session-meta subtle">{repsTotal} reps</div> : null}
                       {s.notes && <p className="session-notes">{s.notes}</p>}
                     </div>
                   );
@@ -887,7 +910,7 @@ function App() {
                 </div>
 
                 <div className="week-table">
-                  {weekRows.map((row) => {
+                  {upcomingRows.map((row) => {
                     const label = new Date(row.date).toLocaleDateString('sv-SE', {
                       weekday: 'short',
                       day: 'numeric',
@@ -902,15 +925,63 @@ function App() {
                         : statusText === 'skipped'
                           ? 'badge warn'
                           : 'badge';
+                    const isSelected = row.date === selectedProgramDayDate;
+                    const rowClass = `week-row ${isSelected ? 'active' : ''}`;
                     return (
-                      <div key={row.date} className="week-row">
+                      <button
+                        key={row.date}
+                        type="button"
+                        className={rowClass}
+                        onClick={() => setSelectedProgramDayDate(row.date)}
+                        style={{ textAlign: 'left' }}
+                      >
                         <div className="week-date">{label}</div>
                         <div className="week-type">{type}</div>
                         <div className={badgeClass}>{statusText}</div>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
+
+                {selectedProgramDay ? (
+                  <div className="workout-card" style={{ marginTop: '0.75rem' }}>
+                    <div className="muted" style={{ marginBottom: '0.4rem' }}>
+                      {new Date(selectedProgramDay.date).toLocaleDateString('sv-SE', {
+                        weekday: 'long',
+                        day: 'numeric',
+                        month: 'short',
+                      })}
+                      {' • '}
+                      {selectedProgressiveProgram?.exercise_key} • {selectedProgressiveProgram?.method}
+                    </div>
+                    <div style={{ fontWeight: 700, marginBottom: '0.25rem' }}>
+                      {selectedProgramDay.day_type?.toUpperCase?.() || '—'} • {selectedProgramDay.status}
+                    </div>
+                    {programDayPlanSummary(selectedProgramDay) ? (
+                      <div className="muted">{programDayPlanSummary(selectedProgramDay)}</div>
+                    ) : null}
+                    {selectedProgramDay.plan?.method === 'submax' && Array.isArray(selectedProgramDay.plan?.sets) ? (
+                      <div className="muted" style={{ marginTop: '0.5rem' }}>
+                        {selectedProgramDay.plan.sets.map((s, idx) => (
+                          <div key={`set_${idx}`}>
+                            Set {idx + 1}: {s.target_reps} reps • vila {s.rest_sec}s
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {selectedProgramDay.plan?.method === 'ladder' &&
+                    Array.isArray(selectedProgramDay.plan?.ladders?.[0]?.steps) ? (
+                      <div className="muted" style={{ marginTop: '0.5rem' }}>
+                        Steg: {selectedProgramDay.plan.ladders[0].steps.join('–')}
+                      </div>
+                    ) : null}
+                    {selectedProgramDay.plan?.notes ? (
+                      <div className="muted" style={{ marginTop: '0.5rem' }}>
+                        {selectedProgramDay.plan.notes}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
               </>
             )}
           </section>
@@ -1207,66 +1278,6 @@ function App() {
           )}
         </section>
 
-        {lastWorkoutLoaded && lastWorkoutSummary && (
-          <section className="panel today-thing-panel">
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">Genomförd</p>
-                <h3>{lastWorkoutSummary.label}</h3>
-              </div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                {lastWorkoutSummary.durationLabel ? (
-                  <span className="badge">{lastWorkoutSummary.durationLabel}</span>
-                ) : null}
-                {lastWorkoutSummary.repsLabel ? (
-                  <span className="badge">{lastWorkoutSummary.repsLabel}</span>
-                ) : null}
-              </div>
-            </div>
-            <p className="muted">
-              Senaste passet är klart.{' '}
-              {lastWorkoutSummary.repsLabel
-                ? `${formatExerciseLabel(lastWorkoutSummary.exercise) || 'Totalt'}: ${
-                    lastWorkoutSummary.repsLabel
-                  }. `
-                : ''}
-              Bra jobbat!
-            </p>
-          </section>
-        )}
-
-        {(() => {
-          const today = new Date().toISOString().slice(0, 10);
-          const todaySessions = recentSessions.filter(
-            (s) => s.completed_at && s.completed_at.slice(0, 10) === today
-          );
-          if (todaySessions.length === 0) return null;
-          return (
-            <section className="panel today-sessions-panel">
-              <div className="panel-header">
-                <div>
-                  <p className="eyebrow">Idag</p>
-                  <h3>Genomförda pass</h3>
-                </div>
-                <span className="badge">{todaySessions.length} pass</span>
-              </div>
-              <div className="today-sessions-list">
-                {todaySessions.map((session) => (
-                  <div key={session.id} className="today-session-item">
-                    <div className="session-info">
-                      <span className="session-title">{session.program_title || 'Eget pass'}</span>
-                      <span className="session-duration">{formatDuration(session.duration_seconds)}</span>
-                    </div>
-                    <span className="session-time-small">
-                      {new Date(session.completed_at).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </section>
-          );
-        })()}
-
         <section className="panel hero start-panel">
           <div className="panel-header">
             <div>
@@ -1325,6 +1336,49 @@ function App() {
             </div>
           )}
         </section>
+
+        {(() => {
+          const today = new Date().toISOString().slice(0, 10);
+          const todaySessions = (daySessions || []).filter((s) => workoutDayKey(s) === today);
+          if (todaySessions.length === 0) return null;
+          return (
+            <section className="panel today-sessions-panel">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Idag</p>
+                  <h3>Genomförda pass</h3>
+                </div>
+                <span className="badge">{todaySessions.length} pass</span>
+              </div>
+              <div className="today-sessions-list">
+                {todaySessions.map((session) => {
+                  const iso = session.started_at || session.ended_at || session.created_at;
+                  const d = iso ? new Date(iso) : null;
+                  const duration = formatDurationLong(
+                    session.duration_sec,
+                    session.started_at,
+                    session.ended_at
+                  );
+                  const repsTotal = totalRepsFromWorkout(session);
+                  return (
+                    <div key={session.id} className="today-session-item">
+                      <div className="session-info">
+                        <span className="session-title">{workoutTitle(session)}</span>
+                        <span className="session-duration">{duration || 'Okänd tid'}</span>
+                      </div>
+                      <span className="session-time-small">
+                        {repsTotal ? `${repsTotal} reps • ` : ''}
+                        {d
+                          ? d.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })
+                          : '—'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })()}
       </div>
     </div>
   );

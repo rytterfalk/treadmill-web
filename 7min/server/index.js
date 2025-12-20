@@ -440,7 +440,8 @@ app.get('/api/workout-sessions/recent', authRequired, (req, res) => {
               ws.notes, ws.source, ws.treadmill_state_json, ws.program_day_id, ws.created_at,
               pd.date AS program_day_date, pd.result_json AS program_day_result_json, pd.plan_json AS program_day_plan_json,
               pd.day_type AS program_day_type,
-              pp.exercise_key AS program_exercise_key, pp.method AS program_method
+              pp.exercise_key AS program_exercise_key, pp.method AS program_method,
+              COALESCE(pd.date, date(COALESCE(ws.started_at, ws.ended_at, ws.created_at))) AS day
        FROM workout_sessions ws
        LEFT JOIN progressive_program_days pd ON pd.id = ws.program_day_id
        LEFT JOIN progressive_programs pp ON pp.id = pd.program_id
@@ -458,11 +459,76 @@ app.get('/api/workout-sessions/recent', authRequired, (req, res) => {
   });
 });
 
+app.get('/api/workout-sessions', authRequired, (req, res) => {
+  const { date, from, to } = req.query || {};
+  const limitRaw = req.query?.limit;
+  const limit = limitRaw != null ? Math.max(1, Math.min(200, Number(limitRaw) || 50)) : 200;
+
+  if (typeof date === 'string' && date) {
+    const rows = db
+      .prepare(
+        `SELECT ws.id, ws.user_id, ws.template_id, ws.session_type, ws.started_at, ws.ended_at, ws.duration_sec,
+                ws.notes, ws.source, ws.treadmill_state_json, ws.program_day_id, ws.created_at,
+                pd.date AS program_day_date, pd.result_json AS program_day_result_json, pd.plan_json AS program_day_plan_json,
+                pd.day_type AS program_day_type,
+                pp.exercise_key AS program_exercise_key, pp.method AS program_method,
+                COALESCE(pd.date, date(COALESCE(ws.started_at, ws.ended_at, ws.created_at))) AS day
+         FROM workout_sessions ws
+         LEFT JOIN progressive_program_days pd ON pd.id = ws.program_day_id
+         LEFT JOIN progressive_programs pp ON pp.id = pd.program_id
+         WHERE ws.user_id = ?
+           AND date(COALESCE(pd.date, COALESCE(ws.started_at, ws.ended_at, ws.created_at))) = date(?)
+         ORDER BY COALESCE(ws.started_at, ws.ended_at, ws.created_at) DESC
+         LIMIT ?`
+      )
+      .all(req.user.id, date, limit);
+
+    return res.json({
+      workouts: rows.map((row) => ({
+        ...row,
+        program_day_result_json: row.program_day_result_json ? JSON.parse(row.program_day_result_json) : null,
+        program_day_plan_json: row.program_day_plan_json ? JSON.parse(row.program_day_plan_json) : null,
+      })),
+    });
+  }
+
+  if (typeof from === 'string' && from && typeof to === 'string' && to) {
+    const rows = db
+      .prepare(
+        `SELECT ws.id, ws.user_id, ws.template_id, ws.session_type, ws.started_at, ws.ended_at, ws.duration_sec,
+                ws.notes, ws.source, ws.treadmill_state_json, ws.program_day_id, ws.created_at,
+                pd.date AS program_day_date, pd.result_json AS program_day_result_json, pd.plan_json AS program_day_plan_json,
+                pd.day_type AS program_day_type,
+                pp.exercise_key AS program_exercise_key, pp.method AS program_method,
+                COALESCE(pd.date, date(COALESCE(ws.started_at, ws.ended_at, ws.created_at))) AS day
+         FROM workout_sessions ws
+         LEFT JOIN progressive_program_days pd ON pd.id = ws.program_day_id
+         LEFT JOIN progressive_programs pp ON pp.id = pd.program_id
+         WHERE ws.user_id = ?
+           AND date(COALESCE(pd.date, COALESCE(ws.started_at, ws.ended_at, ws.created_at))) BETWEEN date(?) AND date(?)
+         ORDER BY COALESCE(ws.started_at, ws.ended_at, ws.created_at) DESC
+         LIMIT ?`
+      )
+      .all(req.user.id, from, to, limit);
+
+    return res.json({
+      workouts: rows.map((row) => ({
+        ...row,
+        program_day_result_json: row.program_day_result_json ? JSON.parse(row.program_day_result_json) : null,
+        program_day_plan_json: row.program_day_plan_json ? JSON.parse(row.program_day_plan_json) : null,
+      })),
+    });
+  }
+
+  return res.status(400).json({ error: 'date eller from+to krävs' });
+});
+
 app.get('/api/workout-sessions/:id', authRequired, (req, res) => {
   const row = db
     .prepare(
       `SELECT ws.id, ws.user_id, ws.template_id, ws.session_type, ws.started_at, ws.ended_at, ws.duration_sec,
               ws.notes, ws.source, ws.treadmill_state_json, ws.program_day_id, ws.created_at,
+              date(COALESCE(ws.started_at, ws.ended_at, ws.created_at)) AS day,
               pd.date AS program_day_date, pd.result_json AS program_day_result_json, pd.plan_json AS program_day_plan_json,
               pd.day_type AS program_day_type,
               pp.exercise_key AS program_exercise_key, pp.method AS program_method
