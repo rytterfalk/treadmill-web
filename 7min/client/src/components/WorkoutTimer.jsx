@@ -24,7 +24,7 @@ function wakeAudio() {
     oscillator.connect(gain).connect(ctx.destination);
     oscillator.start();
     oscillator.stop(ctx.currentTime + 0.01);
-  } catch (err) {
+  } catch {
     // ignore
   }
 }
@@ -44,7 +44,7 @@ function playTone(frequency = 720, volume = 0.08, duration = 0.25) {
     oscillator.start();
     gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
     oscillator.stop(ctx.currentTime + duration + 0.05);
-  } catch (err) {
+  } catch {
     // Best-effort: ljud är valfritt
   }
 }
@@ -64,7 +64,7 @@ function formatSeconds(totalSeconds) {
 function safeLoadLocalStorage(key) {
   try {
     return localStorage.getItem(key);
-  } catch (_err) {
+  } catch {
     return null;
   }
 }
@@ -72,21 +72,98 @@ function safeLoadLocalStorage(key) {
 function safeSetLocalStorage(key, value) {
   try {
     localStorage.setItem(key, value);
-  } catch (_err) {
+  } catch {
+    // ignore
+  }
+}
+
+function clampInt(value, min, max) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  const i = Math.round(n);
+  return Math.max(min, Math.min(max, i));
+}
+
+function workoutSettingsKey(program) {
+  const id = program?.id;
+  if (!id) return null;
+  return `7min_workout_timer_settings_${id}`;
+}
+
+function safeLoadWorkoutSettings(program) {
+  const key = workoutSettingsKey(program);
+  if (!key) return null;
+  const raw = safeLoadLocalStorage(key);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeWorkoutSettings(raw, defaults) {
+  const rounds = clampInt(raw?.rounds, 1, 99) ?? defaults.rounds;
+  const restBetweenExercises =
+    clampInt(raw?.restBetweenExercises, 0, 600) ?? defaults.restBetweenExercises;
+  const restBetweenRounds = clampInt(raw?.restBetweenRounds, 0, 600) ?? defaults.restBetweenRounds;
+
+  const exRaw = raw?.exerciseSeconds;
+  const exerciseSeconds =
+    exRaw === ''
+      ? ''
+      : clampInt(exRaw, 1, 3600) != null
+        ? String(clampInt(exRaw, 1, 3600))
+        : defaults.exerciseSeconds;
+
+  return { rounds, exerciseSeconds, restBetweenExercises, restBetweenRounds };
+}
+
+function safeSaveWorkoutSettings(program, settings) {
+  const key = workoutSettingsKey(program);
+  if (!key) return;
+  try {
+    safeSetLocalStorage(key, JSON.stringify(settings));
+  } catch {
     // ignore
   }
 }
 
 function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }) {
-  const [rounds, setRounds] = useState(1);
-  const [exerciseSeconds, setExerciseSeconds] = useState(() => {
-    // optional override for all exercises, shared across views
-    return safeLoadLocalStorage('7min_exercise_seconds') || '';
+  const defaults = useMemo(() => {
+    return {
+      rounds: Math.max(1, Number(program?.rounds) || 1),
+      exerciseSeconds: safeLoadLocalStorage('7min_exercise_seconds') || '',
+      restBetweenExercises: 10,
+      restBetweenRounds: 40,
+    };
+  }, [program?.rounds]);
+
+  const [rounds, setRounds] = useState(() => {
+    const saved = safeLoadWorkoutSettings(program);
+    if (!saved) return defaults.rounds;
+    return normalizeWorkoutSettings(saved, defaults).rounds;
   });
-  const [restBetweenExercises, setRestBetweenExercises] = useState(10);
-  const [restBetweenRounds, setRestBetweenRounds] = useState(40);
+  const [exerciseSeconds, setExerciseSeconds] = useState(() => {
+    const saved = safeLoadWorkoutSettings(program);
+    if (!saved) return defaults.exerciseSeconds;
+    return normalizeWorkoutSettings(saved, defaults).exerciseSeconds;
+  });
+  const [restBetweenExercises, setRestBetweenExercises] = useState(() => {
+    const saved = safeLoadWorkoutSettings(program);
+    if (!saved) return defaults.restBetweenExercises;
+    return normalizeWorkoutSettings(saved, defaults).restBetweenExercises;
+  });
+  const [restBetweenRounds, setRestBetweenRounds] = useState(() => {
+    const saved = safeLoadWorkoutSettings(program);
+    if (!saved) return defaults.restBetweenRounds;
+    return normalizeWorkoutSettings(saved, defaults).restBetweenRounds;
+  });
   const voicePlayerRef = useRef(null);
   const [showSteps, setShowSteps] = useState(false);
+  const lastSavedKeyRef = useRef(null);
 
   const schedule = useMemo(() => {
     if (!exercises?.length) return [];
@@ -259,6 +336,22 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
     safeSetLocalStorage('7min_exercise_seconds', String(exerciseSeconds));
   }, [exerciseSeconds]);
 
+  useEffect(() => {
+    const key = workoutSettingsKey(program);
+    if (!key) return;
+    // Prevent overwriting saved settings when switching program / first mount
+    if (lastSavedKeyRef.current !== key) {
+      lastSavedKeyRef.current = key;
+      return;
+    }
+    if (status !== 'idle') return;
+    const normalized = normalizeWorkoutSettings(
+      { rounds, exerciseSeconds, restBetweenExercises, restBetweenRounds },
+      defaults
+    );
+    safeSaveWorkoutSettings(program, normalized);
+  }, [program?.id, rounds, exerciseSeconds, restBetweenExercises, restBetweenRounds, status, defaults]);
+
   // Play audio at the START of rest/prep periods (as preparation for next exercise)
   useEffect(() => {
     const step = schedule[stepIndex];
@@ -279,7 +372,7 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
         voicePlayerRef.current = player;
         player.play().catch(() => {});
         lastAudioPlayedRef.current = stepIndex;
-      } catch (err) {
+      } catch {
         // ignore playback errors
       }
     }
@@ -287,7 +380,6 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
 
   // Keep screen awake (best-effort) while timern kör
   useEffect(() => {
-    let cancelled = false;
     async function requestWakeLock() {
       try {
         if ('wakeLock' in navigator && status === 'running') {
@@ -296,7 +388,7 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
             wakeLockRef.current = null;
           });
         }
-      } catch (err) {
+      } catch {
         // ignore; not supported or blocked
       }
     }
@@ -363,7 +455,7 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
                 player.currentTime = 0;
                 voicePlayerRef.current = player;
                 player.play().catch(() => {});
-              } catch (err) {
+              } catch {
                 playTone(760);
               }
             } else {
@@ -459,9 +551,9 @@ function WorkoutTimer({ program, exercises, onComplete, stats, compact = false }
     setRemaining(schedule[0]?.duration || 0);
     setElapsed(0);
     setCountdown(3);
-    setRounds(1);
-    setRestBetweenExercises(10);
-    setRestBetweenRounds(40);
+    setRounds(defaults.rounds);
+    setRestBetweenExercises(defaults.restBetweenExercises);
+    setRestBetweenRounds(defaults.restBetweenRounds);
   }
 
   function abortAndSave() {

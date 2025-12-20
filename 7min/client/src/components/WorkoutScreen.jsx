@@ -591,6 +591,7 @@ body.workout-lock {
             </div>
           ) : (
             <WorkoutTimer
+              key={program?.id ?? `loading:${programId || ''}`}
               program={program}
               exercises={exercises}
               stats={stats}

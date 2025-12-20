@@ -1324,6 +1324,7 @@ function App() {
 
           {selectedProgram ? (
             <WorkoutTimer
+              key={selectedProgram.id}
               program={{ ...selectedProgram, rounds: selectedProgram.rounds || 1 }}
               exercises={selectedExercises.length ? selectedExercises : defaultExercises}
               stats={selectedProgramStats}
