@@ -160,7 +160,14 @@ if [[ "$PULL" == "1" ]]; then
     fi
   fi
   echo "[deploy] git pull"
-  (cd "$ROOT" && git pull)
+  # Stash any local changes before pulling
+  (cd "$ROOT" && {
+    if ! git diff --quiet || ! git diff --cached --quiet; then
+      echo "[deploy] stashing local changes..."
+      git stash push -m "deploy-auto-stash-$(date +%Y%m%d-%H%M%S)"
+    fi
+    git pull
+  })
 fi
 
 echo "[deploy] deps"
