@@ -2053,63 +2053,196 @@ button.tiny {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   DAILY CHALLENGE
+   DAILY CHALLENGE - Multi-challenge compact cards
    ═══════════════════════════════════════════════════════════ */
 
-.daily-challenge-panel {
+.daily-challenges-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.daily-challenge-card {
   background: var(--bg-card);
   border-radius: var(--radius-md);
-  padding: 1.25rem;
   border: 1px solid var(--border);
+  padding: 0.75rem;
+  min-width: 140px;
+  flex: 1 1 140px;
+  max-width: 200px;
 }
 
-.daily-challenge-panel.active {
+.daily-challenge-card.ready {
   border-color: var(--accent);
-  background: linear-gradient(135deg, rgba(247, 199, 43, 0.05) 0%, var(--bg-card) 100%);
+  background: linear-gradient(135deg, rgba(247, 199, 43, 0.08) 0%, var(--bg-card) 100%);
 }
 
-.challenge-header {
+.daily-challenge-card.setup {
+  flex: 1 1 100%;
+  max-width: 100%;
+}
+
+.challenge-card-header {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
 }
 
-.challenge-icon {
-  font-size: 1.5rem;
-}
-
-.challenge-header-text {
-  flex: 1;
+.challenge-card-title {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
 }
 
-.challenge-header h3 {
-  margin: 0;
-  font-size: 1.1rem;
+.challenge-card-title strong {
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.challenge-subtitle {
+.challenge-card-meta {
+  font-size: 0.7rem;
   color: var(--text-secondary);
-  font-size: 0.85rem;
 }
 
 .challenge-edit-btn {
   background: none;
   border: none;
-  padding: 0.4rem;
-  font-size: 1rem;
+  padding: 0.2rem;
+  font-size: 0.8rem;
   cursor: pointer;
-  opacity: 0.6;
+  opacity: 0.5;
   transition: opacity 0.15s;
-  border-radius: var(--radius-sm);
+  flex-shrink: 0;
 }
 
 .challenge-edit-btn:hover {
   opacity: 1;
-  background: var(--bg-elevated);
 }
 
+.challenge-card-body {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.challenge-card-timer {
+  font-size: 1.4rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.challenge-card-ready {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ready-badge {
+  background: var(--accent);
+  color: #000;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.log-quick {
+  background: var(--accent);
+  color: #000;
+  border: none;
+  padding: 0.3rem 0.6rem;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.log-quick:hover {
+  filter: brightness(1.1);
+}
+
+.challenge-card-stats {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+.challenge-card-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.challenge-card-actions button {
+  font-size: 0.7rem;
+  padding: 0.25rem 0.5rem;
+}
+
+/* Setup form compact */
+.challenge-setup-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.challenge-setup-compact input,
+.challenge-setup-compact select {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.challenge-setup-compact .setup-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.challenge-setup-compact .reps-input {
+  width: 60px;
+}
+
+.challenge-setup-compact .setup-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.challenge-setup-compact .setup-actions button {
+  flex: 1;
+}
+
+/* Add button */
+.add-challenge-btn {
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  width: 100%;
+}
+
+.add-challenge-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Keep old styles for compatibility */
 .challenge-empty {
   text-align: center;
   padding: 1rem 0;
