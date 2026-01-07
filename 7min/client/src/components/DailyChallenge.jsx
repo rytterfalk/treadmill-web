@@ -68,6 +68,19 @@ function DailyChallenge({ onSaveDay }) {
     return () => clearInterval(intervalRef.current);
   }, [challenge]);
 
+  // Calculate next aligned clock time (e.g., :00, :30 for 30min intervals)
+  function getNextAlignedTime(intervalMins, afterTime = Date.now()) {
+    const d = new Date(afterTime);
+    const mins = d.getMinutes();
+    const alignedMinute = Math.ceil(mins / intervalMins) * intervalMins;
+    d.setMinutes(alignedMinute, 0, 0);
+    // If we're past this time, go to next interval
+    if (d.getTime() <= afterTime) {
+      d.setMinutes(d.getMinutes() + intervalMins);
+    }
+    return d.getTime();
+  }
+
   function startChallenge() {
     const now = Date.now();
     const newChallenge = {
@@ -88,7 +101,8 @@ function DailyChallenge({ onSaveDay }) {
     if (!challenge) return;
     const now = Date.now();
     const newSets = [...challenge.sets, { reps, time: now }];
-    const nextSetTime = now + challenge.intervalMinutes * 60 * 1000;
+    // Next set at next aligned clock time
+    const nextSetTime = getNextAlignedTime(challenge.intervalMinutes, now);
     setChallenge({ ...challenge, sets: newSets, nextSetTime });
     setShowLogModal(false);
     setActualReps(0);
@@ -105,8 +119,11 @@ function DailyChallenge({ onSaveDay }) {
     }
     // Sort by time
     newSets.sort((a, b) => a.time - b.time);
-    // Set next set time to one interval from now
-    const nextSetTime = now + challenge.intervalMinutes * 60 * 1000;
+    // DON'T change nextSetTime - keep the current aligned target
+    // Only update if we don't have one yet
+    const nextSetTime = challenge.nextSetTime > now
+      ? challenge.nextSetTime
+      : getNextAlignedTime(challenge.intervalMinutes, now);
     setChallenge({ ...challenge, sets: newSets, nextSetTime });
     setShowEditModal(false);
     setBulkSets(0);
@@ -184,10 +201,17 @@ function DailyChallenge({ onSaveDay }) {
     <div className="daily-challenge-panel active">
       <div className="challenge-header">
         <span className="challenge-icon">🔄</span>
-        <div>
+        <div className="challenge-header-text">
           <h3>{challenge.exercise}</h3>
           <span className="challenge-subtitle">{challenge.targetReps} reps var {challenge.intervalMinutes}:e minut</span>
         </div>
+        <button
+          className="challenge-edit-btn"
+          onClick={() => { setBulkSets(1); setShowEditModal(true); }}
+          title="Lägg till tidigare set"
+        >
+          ✏️
+        </button>
       </div>
 
       {/* Timer */}
@@ -238,7 +262,6 @@ function DailyChallenge({ onSaveDay }) {
       </div>
 
       <div className="challenge-end-section">
-        <button className="ghost small" onClick={() => { setBulkSets(1); setShowEditModal(true); }}>✏️ Lägg till tidigare set</button>
         <button className="ghost small danger" onClick={endDay}>Avsluta för dagen</button>
       </div>
 

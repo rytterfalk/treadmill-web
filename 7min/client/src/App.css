@@ -2079,6 +2079,11 @@ button.tiny {
   font-size: 1.5rem;
 }
 
+.challenge-header-text {
+  flex: 1;
+  min-width: 0;
+}
+
 .challenge-header h3 {
   margin: 0;
   font-size: 1.1rem;
@@ -2087,6 +2092,22 @@ button.tiny {
 .challenge-subtitle {
   color: var(--text-secondary);
   font-size: 0.85rem;
+}
+
+.challenge-edit-btn {
+  background: none;
+  border: none;
+  padding: 0.4rem;
+  font-size: 1rem;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+  border-radius: var(--radius-sm);
+}
+
+.challenge-edit-btn:hover {
+  opacity: 1;
+  background: var(--bg-elevated);
 }
 
 .challenge-empty {
