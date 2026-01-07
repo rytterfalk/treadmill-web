@@ -1281,27 +1281,11 @@ function App() {
 
         {/* Daily Challenge */}
         <DailyChallenge
+          currentUserId={user?.id}
           onSaveDay={async (summary) => {
-            // Save to backend as a workout session
-            try {
-              await api('/api/workouts', {
-                method: 'POST',
-                body: JSON.stringify({
-                  type: 'daily_challenge',
-                  exercise: summary.exercise,
-                  total_reps: summary.totalReps,
-                  sets_completed: summary.setsCompleted,
-                  target_per_set: summary.targetPerSet,
-                  date: summary.date,
-                }),
-              });
-              loadSessions();
-              setStatus('Daglig utmaning sparad!');
-              setTimeout(() => setStatus(''), 2000);
-            } catch (err) {
-              console.error('Failed to save daily challenge:', err);
-              setStatus('Kunde inte spara utmaningen');
-            }
+            loadSessions();
+            setStatus('Daglig utmaning sparad!');
+            setTimeout(() => setStatus(''), 2000);
           }}
         />
 
