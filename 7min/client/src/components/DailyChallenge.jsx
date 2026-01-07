@@ -30,7 +30,9 @@ function DailyChallenge({ onSaveDay }) {
   const [intervalMinutes, setIntervalMinutes] = useState(30);
   const [countdown, setCountdown] = useState(null);
   const [showLogModal, setShowLogModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [actualReps, setActualReps] = useState(0);
+  const [bulkSets, setBulkSets] = useState(0);
   const intervalRef = useRef(null);
 
   // Save to localStorage whenever challenge changes
@@ -90,6 +92,24 @@ function DailyChallenge({ onSaveDay }) {
     setChallenge({ ...challenge, sets: newSets, nextSetTime });
     setShowLogModal(false);
     setActualReps(0);
+  }
+
+  function addBulkSets(numSets, repsPerSet) {
+    if (!challenge || numSets <= 0) return;
+    const now = Date.now();
+    const newSets = [...challenge.sets];
+    // Add sets with times spread backwards based on interval
+    for (let i = numSets - 1; i >= 0; i--) {
+      const setTime = now - (i * challenge.intervalMinutes * 60 * 1000);
+      newSets.push({ reps: repsPerSet, time: setTime, retroactive: true });
+    }
+    // Sort by time
+    newSets.sort((a, b) => a.time - b.time);
+    // Set next set time to one interval from now
+    const nextSetTime = now + challenge.intervalMinutes * 60 * 1000;
+    setChallenge({ ...challenge, sets: newSets, nextSetTime });
+    setShowEditModal(false);
+    setBulkSets(0);
   }
 
   function endDay() {
@@ -218,6 +238,7 @@ function DailyChallenge({ onSaveDay }) {
       </div>
 
       <div className="challenge-end-section">
+        <button className="ghost small" onClick={() => { setBulkSets(1); setShowEditModal(true); }}>✏️ Lägg till tidigare set</button>
         <button className="ghost small danger" onClick={endDay}>Avsluta för dagen</button>
       </div>
 
@@ -233,6 +254,30 @@ function DailyChallenge({ onSaveDay }) {
             <div className="modal-actions">
               <button onClick={() => logSet(actualReps)}>Spara</button>
               <button className="ghost" onClick={() => setShowLogModal(false)}>Avbryt</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk add modal */}
+      {showEditModal && (
+        <div className="challenge-modal-overlay" onClick={() => setShowEditModal(false)}>
+          <div className="challenge-modal" onClick={(e) => e.stopPropagation()}>
+            <h4>Lägg till tidigare set</h4>
+            <p className="modal-hint">Lägg till set du redan gjort idag</p>
+            <label className="setup-field">
+              <span>Antal set att lägga till</span>
+              <input type="number" value={bulkSets} onChange={(e) => setBulkSets(Number(e.target.value))} min={1} max={20} autoFocus />
+            </label>
+            <label className="setup-field">
+              <span>Reps per set</span>
+              <input type="number" value={actualReps || challenge.targetReps} onChange={(e) => setActualReps(Number(e.target.value))} min={0} />
+            </label>
+            <div className="modal-actions">
+              <button onClick={() => addBulkSets(bulkSets, actualReps || challenge.targetReps)}>
+                Lägg till {bulkSets} set ({bulkSets * (actualReps || challenge.targetReps)} reps)
+              </button>
+              <button className="ghost" onClick={() => setShowEditModal(false)}>Avbryt</button>
             </div>
           </div>
         </div>
