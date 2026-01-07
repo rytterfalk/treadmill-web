@@ -12,6 +12,7 @@ import WeekBars from './components/WeekBars';
 import WeekProgress from './components/WeekProgress';
 import CalendarGrid from './components/CalendarGrid';
 import ProgressiveProgramWizard from './components/ProgressiveProgramWizard';
+import DailyChallenge from './components/DailyChallenge';
 
 const defaultExercises = [
   { title: 'Jumping Jacks', durationSeconds: 30, restSeconds: 5, notes: '' },
@@ -1277,6 +1278,32 @@ function App() {
             </div>
           )}
         </section>
+
+        {/* Daily Challenge */}
+        <DailyChallenge
+          onSaveDay={async (summary) => {
+            // Save to backend as a workout session
+            try {
+              await api('/api/workouts', {
+                method: 'POST',
+                body: JSON.stringify({
+                  type: 'daily_challenge',
+                  exercise: summary.exercise,
+                  total_reps: summary.totalReps,
+                  sets_completed: summary.setsCompleted,
+                  target_per_set: summary.targetPerSet,
+                  date: summary.date,
+                }),
+              });
+              loadSessions();
+              setStatus('Daglig utmaning sparad!');
+              setTimeout(() => setStatus(''), 2000);
+            } catch (err) {
+              console.error('Failed to save daily challenge:', err);
+              setStatus('Kunde inte spara utmaningen');
+            }
+          }}
+        />
 
         <section className="panel hero start-panel">
           <div className="panel-header">
