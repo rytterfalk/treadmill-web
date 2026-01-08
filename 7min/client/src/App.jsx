@@ -103,6 +103,9 @@ function App() {
   const [showQuickSelect, setShowQuickSelect] = useState(false);
   const [editingProgram, setEditingProgram] = useState(null); // For editing existing programs
   const [showCreateTypePicker, setShowCreateTypePicker] = useState(false);
+  const [hiitCollapsed, setHiitCollapsed] = useState(() => {
+    try { return localStorage.getItem('7min_hiit_collapsed') === 'true'; } catch { return false; }
+  });
   const [todayThing, setTodayThing] = useState(null);
   const [todayThingStatus, setTodayThingStatus] = useState('idle');
   const [lastWorkout, setLastWorkout] = useState(null);
@@ -159,6 +162,11 @@ function App() {
       loadSessions();
     }
   }, [user]);
+
+  // Save HIIT collapsed state
+  useEffect(() => {
+    try { localStorage.setItem('7min_hiit_collapsed', hiitCollapsed ? 'true' : 'false'); } catch {}
+  }, [hiitCollapsed]);
 
   useEffect(() => {
     if (!user) return;
@@ -1339,63 +1347,67 @@ function App() {
           }}
         />
 
-        <section className="panel hero start-panel">
-          <div className="panel-header">
+        <section className={`panel hero start-panel ${hiitCollapsed ? 'collapsed' : ''}`}>
+          <div className="panel-header clickable" onClick={() => setHiitCollapsed(!hiitCollapsed)}>
             <div>
-              <p className="eyebrow">Ditt träningspass</p>
-              <h2>{selectedProgram?.title || 'Välj ett pass'}</h2>
+              <p className="eyebrow">HIIT-pass</p>
+              <h2>{selectedProgram?.title || 'Välj ett pass'} {hiitCollapsed ? '▶' : '▼'}</h2>
             </div>
-            <div className="quick-select-container">
-              <button className="ghost" onClick={() => setShowQuickSelect(!showQuickSelect)}>
-                Byt träning ▾
-              </button>
-              {showQuickSelect && (
-                <div className="quick-select-dropdown">
-                  {favoritePrograms.length > 0 && (
-                    <>
-                      <div className="dropdown-label">Favoriter</div>
-                      {favoritePrograms.map((p) => (
-                        <button
-                          key={p.id}
-                          className="dropdown-item"
-                          onClick={() => {
-                            selectProgram(p.id);
-                            setShowQuickSelect(false);
-                          }}
-                        >
-                          ★ {p.title}
-                        </button>
-                      ))}
-                      <div className="dropdown-divider" />
-                    </>
-                  )}
-                  <button
-                    className="dropdown-item all-programs"
-                    onClick={() => {
-                      setShowQuickSelect(false);
-                      setView('programs');
-                    }}
-                  >
-                    Visa alla pass →
-                  </button>
-                </div>
-              )}
-            </div>
+            {!hiitCollapsed && (
+              <div className="quick-select-container" onClick={(e) => e.stopPropagation()}>
+                <button className="ghost" onClick={() => setShowQuickSelect(!showQuickSelect)}>
+                  Byt träning ▾
+                </button>
+                {showQuickSelect && (
+                  <div className="quick-select-dropdown">
+                    {favoritePrograms.length > 0 && (
+                      <>
+                        <div className="dropdown-label">Favoriter</div>
+                        {favoritePrograms.map((p) => (
+                          <button
+                            key={p.id}
+                            className="dropdown-item"
+                            onClick={() => {
+                              selectProgram(p.id);
+                              setShowQuickSelect(false);
+                            }}
+                          >
+                            ★ {p.title}
+                          </button>
+                        ))}
+                        <div className="dropdown-divider" />
+                      </>
+                    )}
+                    <button
+                      className="dropdown-item all-programs"
+                      onClick={() => {
+                        setShowQuickSelect(false);
+                        setView('programs');
+                      }}
+                    >
+                      Visa alla pass →
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
-          {selectedProgram ? (
-            <WorkoutTimer
-              key={selectedProgram.id}
-              program={{ ...selectedProgram, rounds: selectedProgram.rounds || 1 }}
-              exercises={selectedExercises.length ? selectedExercises : defaultExercises}
-              stats={selectedProgramStats}
-              onComplete={handleSessionComplete}
-            />
-          ) : (
-            <div className="no-program-selected">
-              <p>Inget pass valt</p>
-              <button onClick={() => setView('programs')}>Välj träningspass</button>
-            </div>
+          {!hiitCollapsed && (
+            selectedProgram ? (
+              <WorkoutTimer
+                key={selectedProgram.id}
+                program={{ ...selectedProgram, rounds: selectedProgram.rounds || 1 }}
+                exercises={selectedExercises.length ? selectedExercises : defaultExercises}
+                stats={selectedProgramStats}
+                onComplete={handleSessionComplete}
+              />
+            ) : (
+              <div className="no-program-selected">
+                <p>Inget pass valt</p>
+                <button onClick={() => setView('programs')}>Välj träningspass</button>
+              </div>
+            )
           )}
         </section>
 

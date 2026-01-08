@@ -14,6 +14,7 @@ const POINTS_CONFIG = {
     mobility: 0.6,
     test: 0.3,
     progressive: 3.0,
+    challenge: 0.1, // 0.1 points per rep
     other: 1.0,
   },
 };
@@ -25,6 +26,7 @@ const ICONS = {
   hiit: 'bolt',
   test: 'beaker',
   progressive: 'dumbbell',
+  challenge: 'target',
 };
 
 const allowedTypes = new Set(Object.keys(POINTS_CONFIG.multipliers));
@@ -99,6 +101,32 @@ function aggregateSessions(sessions) {
   return byDate;
 }
 
+// Aggregate challenges into the same byDate map
+function aggregateChallenges(challenges, byDate) {
+  const multiplier = POINTS_CONFIG.multipliers.challenge || 0.1;
+  challenges.forEach((challenge) => {
+    const day = challenge.date;
+    if (!day) return;
+    const totalReps = Number(challenge.total_reps) || 0;
+    const challengePoints = clampPoints(totalReps * multiplier);
+
+    if (!byDate.has(day)) {
+      byDate.set(day, {
+        date: day,
+        icons: new Set(),
+        minutes: 0,
+        points: 0,
+        sessionIds: [],
+      });
+    }
+    const bucket = byDate.get(day);
+    bucket.points += challengePoints;
+    bucket.icons.add('target');
+  });
+
+  return byDate;
+}
+
 router.get('/summary', authRequired, (req, res) => {
   const { from, to } = req.query;
   const fromDate = parseDate(from);
@@ -149,6 +177,7 @@ router.get('/weekbars', authRequired, (req, res) => {
   const start = new Date(end);
   start.setUTCDate(end.getUTCDate() - weeks * 7 + 1);
 
+  // Get workout sessions
   const rows = db
     .prepare(
       `SELECT ws.id, ws.session_type, ws.duration_sec, ws.started_at, ws.ended_at, ws.created_at,
@@ -163,7 +192,19 @@ router.get('/weekbars', authRequired, (req, res) => {
     )
     .all(req.user.id, dateKey(start), dateKey(end));
 
+  // Get challenges with their total reps
+  const challenges = db
+    .prepare(
+      `SELECT dc.id, dc.date,
+              (SELECT COALESCE(SUM(reps), 0) FROM daily_challenge_sets WHERE challenge_id = dc.id) as total_reps
+       FROM daily_challenges dc
+       WHERE dc.user_id = ? AND dc.date BETWEEN date(?) AND date(?)`
+    )
+    .all(req.user.id, dateKey(start), dateKey(end));
+
   const aggregated = aggregateSessions(rows);
+  aggregateChallenges(challenges, aggregated);
+
   const days = buildEmptyRange(start, end).map((entry) => {
     if (!aggregated.has(entry.date)) return { ...entry, points: 0, hitCap: false };
     const bucket = aggregated.get(entry.date);
