@@ -4,9 +4,46 @@ const { authRequired } = require('../auth');
 
 const router = express.Router();
 
+// Auto-continue challenges from previous days
+// This is called lazily when fetching challenges
+function autoContinueChallenges(userId) {
+  const today = new Date().toISOString().slice(0, 10);
+
+  // Find active challenges from previous days (not ended, date < today)
+  const oldChallenges = db.prepare(`
+    SELECT * FROM daily_challenges
+    WHERE user_id = ? AND ended_at IS NULL AND date < ?
+  `).all(userId, today);
+
+  if (oldChallenges.length === 0) return;
+
+  const endStmt = db.prepare(`UPDATE daily_challenges SET ended_at = datetime('now') WHERE id = ?`);
+  const createStmt = db.prepare(`
+    INSERT INTO daily_challenges (user_id, date, exercise, target_reps, interval_minutes)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+
+  // Use a transaction for atomicity
+  const continueAll = db.transaction(() => {
+    for (const old of oldChallenges) {
+      // End the old challenge
+      endStmt.run(old.id);
+
+      // Create a new one for today with the same settings
+      createStmt.run(userId, today, old.exercise, old.target_reps, old.interval_minutes);
+    }
+  });
+
+  continueAll();
+}
+
 // Get user's active challenges for today
 router.get('/my', authRequired, (req, res) => {
   const today = new Date().toISOString().slice(0, 10);
+
+  // Auto-continue any challenges from previous days
+  autoContinueChallenges(req.user.id);
+
   const challenges = db.prepare(`
     SELECT dc.*,
            (SELECT COUNT(*) FROM daily_challenge_sets WHERE challenge_id = dc.id) as sets_count,
