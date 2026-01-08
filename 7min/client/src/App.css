@@ -2533,3 +2533,13 @@ button.tiny {
   text-overflow: ellipsis;
   max-width: 100px;
 }
+
+/* Challenge session in Progress view */
+.session.challenge-session {
+  border-left: 3px solid #4caf50;
+  background: linear-gradient(135deg, rgba(76, 175, 80, 0.05) 0%, transparent 100%);
+}
+
+.session.challenge-session .session-title {
+  color: var(--text-primary);
+}

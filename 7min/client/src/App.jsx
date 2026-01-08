@@ -76,6 +76,7 @@ function App() {
   const [calendarDays, setCalendarDays] = useState([]);
   const [weekBarDays, setWeekBarDays] = useState([]);
   const [weekSessions, setWeekSessions] = useState([]);
+  const [weekChallenges, setWeekChallenges] = useState([]);
   const [selectedProgressDate, setSelectedProgressDate] = useState(null); // For Progress view day filter
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
@@ -171,6 +172,7 @@ function App() {
       loadCalendar();
       loadWeekBars();
       loadWeekSessions();
+      loadWeekChallenges();
       loadProgressivePrograms();
     }
   }, [user, view, calendarRange.from, calendarRange.to]);
@@ -446,24 +448,37 @@ function App() {
     }
   }
 
+  function getWeekRange() {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + mondayOffset);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    return {
+      from: monday.toISOString().slice(0, 10),
+      to: sunday.toISOString().slice(0, 10),
+    };
+  }
+
   async function loadWeekSessions() {
     try {
-      // Get current week (Mon-Sun)
-      const today = new Date();
-      const dayOfWeek = today.getDay();
-      const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-      const monday = new Date(today);
-      monday.setDate(today.getDate() + mondayOffset);
-      const sunday = new Date(monday);
-      sunday.setDate(monday.getDate() + 6);
-
-      const from = monday.toISOString().slice(0, 10);
-      const to = sunday.toISOString().slice(0, 10);
-
+      const { from, to } = getWeekRange();
       const data = await api(`/api/workout-sessions?from=${from}&to=${to}&limit=200`);
       setWeekSessions(data.workouts || []);
     } catch (err) {
       setWeekSessions([]);
+    }
+  }
+
+  async function loadWeekChallenges() {
+    try {
+      const { from, to } = getWeekRange();
+      const data = await api(`/api/challenges/history?from=${from}&to=${to}`);
+      setWeekChallenges(data.challenges || []);
+    } catch (err) {
+      setWeekChallenges([]);
     }
   }
 
@@ -785,6 +800,11 @@ function App() {
       ? weekSessions.filter((s) => workoutDayKey(s) === selectedProgressDate)
       : weekSessions;
 
+    // Filter challenges by selected day
+    const filteredChallenges = selectedProgressDate
+      ? weekChallenges.filter((c) => c.date === selectedProgressDate)
+      : weekChallenges;
+
     // Format selected day for display
     const selectedDayLabel = selectedProgressDate
       ? new Date(selectedProgressDate).toLocaleDateString('sv-SE', {
@@ -865,6 +885,36 @@ function App() {
               </p>
             )}
           </section>
+
+          {/* Challenges section */}
+          {filteredChallenges.length > 0 && (
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">{selectedProgressDate ? selectedDayLabel : 'Veckans utmaningar'}</p>
+                  <h2>Utmaningar</h2>
+                </div>
+                <span className="badge">
+                  {filteredChallenges.reduce((sum, c) => sum + (c.total_reps || 0), 0)} reps
+                </span>
+              </div>
+              <div className="session-list">
+                {filteredChallenges.map((c) => (
+                  <div key={c.id} className="session challenge-session">
+                    <div className="session-title">
+                      🎯 {c.exercise}
+                    </div>
+                    <div className="session-meta">
+                      {c.sets_count || 0} set • {c.total_reps || 0} reps • mål: {c.target_reps}/set
+                    </div>
+                    <div className="session-meta subtle">
+                      var {c.interval_minutes} min • {c.ended_at ? 'Avslutad' : 'Pågående'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           <section className="panel">
             <div className="panel-header">

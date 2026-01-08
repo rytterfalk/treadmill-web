@@ -8,14 +8,33 @@ const router = express.Router();
 router.get('/my', authRequired, (req, res) => {
   const today = new Date().toISOString().slice(0, 10);
   const challenges = db.prepare(`
-    SELECT dc.*, 
+    SELECT dc.*,
            (SELECT COUNT(*) FROM daily_challenge_sets WHERE challenge_id = dc.id) as sets_count,
            (SELECT COALESCE(SUM(reps), 0) FROM daily_challenge_sets WHERE challenge_id = dc.id) as total_reps
     FROM daily_challenges dc
     WHERE dc.user_id = ? AND dc.date = ? AND dc.ended_at IS NULL
     ORDER BY dc.started_at
   `).all(req.user.id, today);
-  
+
+  res.json({ challenges });
+});
+
+// Get challenge history for a date range (for Progress view)
+router.get('/history', authRequired, (req, res) => {
+  const { from, to } = req.query;
+  if (!from || !to) {
+    return res.status(400).json({ error: 'from and to required' });
+  }
+
+  const challenges = db.prepare(`
+    SELECT dc.*,
+           (SELECT COUNT(*) FROM daily_challenge_sets WHERE challenge_id = dc.id) as sets_count,
+           (SELECT COALESCE(SUM(reps), 0) FROM daily_challenge_sets WHERE challenge_id = dc.id) as total_reps
+    FROM daily_challenges dc
+    WHERE dc.user_id = ? AND dc.date >= ? AND dc.date <= ?
+    ORDER BY dc.date DESC, dc.started_at DESC
+  `).all(req.user.id, from, to);
+
   res.json({ challenges });
 });
 
