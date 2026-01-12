@@ -410,12 +410,12 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
       </div>
 
       {/* Weekly history / leaderboard */}
-      {historyByDate.some(d => d.hasActivity) && (
+      {(historyByDate.some(d => d.hasActivity) || sortedLeaderboard.length > 0) && (
         <div className="challenge-leaderboard-section">
           <button className="leaderboard-toggle" onClick={() => setShowLeaderboard(!showLeaderboard)}>
             🏆 Veckans träning {showLeaderboard ? '▲' : '▼'}
           </button>
-          {showLeaderboard && (
+          {showLeaderboard && historyByDate.some(d => d.hasActivity) && (
             <div className="challenge-history">
               {historyByDate.filter(d => d.hasActivity).map(day => (
                 <div key={day.date} className="history-day">
@@ -440,6 +440,19 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
                       </div>
                     ))}
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Fallback to old leaderboard if history is empty */}
+          {showLeaderboard && !historyByDate.some(d => d.hasActivity) && sortedLeaderboard.length > 0 && (
+            <div className="challenge-leaderboard">
+              {sortedLeaderboard.map((entry, i) => (
+                <div key={entry.user_id} className={`leaderboard-entry ${entry.user_id === currentUserId ? 'me' : ''}`}>
+                  <span className="lb-rank">{i + 1}</span>
+                  <span className="lb-name">{entry.user_name}</span>
+                  <span className="lb-reps">{entry.total_reps} reps</span>
+                  <span className="lb-exercises">{entry.challenges.map(c => c.exercise).join(', ')}</span>
                 </div>
               ))}
             </div>
