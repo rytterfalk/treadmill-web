@@ -54,7 +54,8 @@ router.get('/my', authRequired, (req, res) => {
   const challenges = db.prepare(`
     SELECT dc.*,
            (SELECT COUNT(*) FROM daily_challenge_sets WHERE challenge_id = dc.id) as sets_count,
-           (SELECT COALESCE(SUM(reps), 0) FROM daily_challenge_sets WHERE challenge_id = dc.id) as total_reps
+           (SELECT COALESCE(SUM(reps), 0) FROM daily_challenge_sets WHERE challenge_id = dc.id) as total_reps,
+           (SELECT MAX(logged_at) FROM daily_challenge_sets WHERE challenge_id = dc.id) as last_set_at
     FROM daily_challenges dc
     WHERE dc.user_id = ? AND dc.date = ? AND dc.ended_at IS NULL
     ORDER BY dc.started_at
@@ -64,22 +65,62 @@ router.get('/my', authRequired, (req, res) => {
 });
 
 // Get challenge history for a date range (for Progress view)
+// If from/to not provided, defaults to last 7 days
 router.get('/history', authRequired, (req, res) => {
-  const { from, to } = req.query;
-  if (!from || !to) {
-    return res.status(400).json({ error: 'from and to required' });
+  let { from, to } = req.query;
+
+  // Default to last 7 days if not provided
+  const today = new Date();
+  const dates = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    dates.push(d.toISOString().slice(0, 10));
   }
 
-  const challenges = db.prepare(`
-    SELECT dc.*,
-           (SELECT COUNT(*) FROM daily_challenge_sets WHERE challenge_id = dc.id) as sets_count,
-           (SELECT COALESCE(SUM(reps), 0) FROM daily_challenge_sets WHERE challenge_id = dc.id) as total_reps
-    FROM daily_challenges dc
-    WHERE dc.user_id = ? AND dc.date >= ? AND dc.date <= ?
-    ORDER BY dc.date DESC, dc.started_at DESC
-  `).all(req.user.id, from, to);
+  if (!from) from = dates[dates.length - 1]; // oldest date
+  if (!to) to = dates[0]; // today
 
-  res.json({ challenges });
+  // Get all challenges with sets for the date range
+  const challenges = db.prepare(`
+    SELECT
+      dc.id,
+      dc.user_id,
+      dc.date,
+      u.name as user_name,
+      dc.exercise,
+      dc.target_reps,
+      dc.interval_minutes,
+      (SELECT COUNT(*) FROM daily_challenge_sets WHERE challenge_id = dc.id) as sets_count,
+      (SELECT COALESCE(SUM(reps), 0) FROM daily_challenge_sets WHERE challenge_id = dc.id) as total_reps
+    FROM daily_challenges dc
+    JOIN users u ON u.id = dc.user_id
+    WHERE dc.date >= ? AND dc.date <= ?
+    ORDER BY dc.date DESC, total_reps DESC
+  `).all(from, to);
+
+  // Get all workout sessions for the date range (HIIT, strength, etc)
+  const workouts = db.prepare(`
+    SELECT
+      ws.id,
+      ws.user_id,
+      u.name as user_name,
+      ws.session_type,
+      ws.duration_sec,
+      ws.notes,
+      ws.started_at,
+      ws.ended_at,
+      wt.title as template_title,
+      date(COALESCE(ws.started_at, ws.ended_at, ws.created_at)) as date
+    FROM workout_sessions ws
+    JOIN users u ON u.id = ws.user_id
+    LEFT JOIN workout_templates wt ON wt.id = ws.template_id
+    WHERE date(COALESCE(ws.started_at, ws.ended_at, ws.created_at)) >= ?
+      AND date(COALESCE(ws.started_at, ws.ended_at, ws.created_at)) <= ?
+    ORDER BY COALESCE(ws.started_at, ws.ended_at, ws.created_at) DESC
+  `).all(from, to);
+
+  res.json({ dates, challenges, workouts });
 });
 
 // Get leaderboard for today (all active challenges from all users)
@@ -105,60 +146,6 @@ router.get('/leaderboard', authRequired, (req, res) => {
   `).all(today);
 
   res.json({ leaderboard, date: today });
-});
-
-// Get weekly history - challenges AND workout sessions for last 7 days
-router.get('/history', authRequired, (req, res) => {
-  const today = new Date();
-  const dates = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    dates.push(d.toISOString().slice(0, 10));
-  }
-  const startDate = dates[dates.length - 1];
-  const endDate = dates[0];
-
-  // Get all challenges with sets for the week
-  const challenges = db.prepare(`
-    SELECT
-      dc.id,
-      dc.user_id,
-      dc.date,
-      u.name as user_name,
-      dc.exercise,
-      dc.target_reps,
-      dc.interval_minutes,
-      (SELECT COUNT(*) FROM daily_challenge_sets WHERE challenge_id = dc.id) as sets_count,
-      (SELECT COALESCE(SUM(reps), 0) FROM daily_challenge_sets WHERE challenge_id = dc.id) as total_reps
-    FROM daily_challenges dc
-    JOIN users u ON u.id = dc.user_id
-    WHERE dc.date >= ? AND dc.date <= ?
-    ORDER BY dc.date DESC, total_reps DESC
-  `).all(startDate, endDate);
-
-  // Get all workout sessions for the week (HIIT, strength, etc)
-  const workouts = db.prepare(`
-    SELECT
-      ws.id,
-      ws.user_id,
-      u.name as user_name,
-      ws.session_type,
-      ws.duration_sec,
-      ws.notes,
-      ws.started_at,
-      ws.ended_at,
-      wt.title as template_title,
-      date(COALESCE(ws.started_at, ws.ended_at, ws.created_at)) as date
-    FROM workout_sessions ws
-    JOIN users u ON u.id = ws.user_id
-    LEFT JOIN workout_templates wt ON wt.id = ws.template_id
-    WHERE date(COALESCE(ws.started_at, ws.ended_at, ws.created_at)) >= ?
-      AND date(COALESCE(ws.started_at, ws.ended_at, ws.created_at)) <= ?
-    ORDER BY COALESCE(ws.started_at, ws.ended_at, ws.created_at) DESC
-  `).all(startDate, endDate);
-
-  res.json({ dates, challenges, workouts });
 });
 
 // Get recent activity (sets from today, for notifications)

@@ -79,11 +79,32 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
   const [loadingSets, setLoadingSets] = useState(false);
   const [lastActivityCheck, setLastActivityCheck] = useState(() => new Date().toISOString());
 
-  // Load challenges from backend
+  // Load challenges from backend and sync timers
   const loadChallenges = useCallback(async () => {
     try {
       const { challenges: data } = await api('/api/challenges/my');
       setChallenges(data || []);
+
+      // Sync timers from server data (for cross-device sync)
+      if (data && data.length > 0) {
+        setTimers(prev => {
+          const newTimers = { ...prev };
+          data.forEach(c => {
+            // If we don't have a timer for this challenge, calculate from server data
+            if (!newTimers[c.id]) {
+              if (c.last_set_at) {
+                // Calculate next timer based on last set + interval
+                const lastSetTime = new Date(c.last_set_at).getTime();
+                newTimers[c.id] = getNextAlignedTime(c.interval_minutes, lastSetTime);
+              } else {
+                // No sets yet - timer should be now (ready to do first set)
+                newTimers[c.id] = Date.now();
+              }
+            }
+          });
+          return newTimers;
+        });
+      }
     } catch (err) {
       console.error('Failed to load challenges:', err);
     }
