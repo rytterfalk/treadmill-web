@@ -90,14 +90,27 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
     loadLeaderboard();
   }, [loadChallenges, loadLeaderboard]);
 
-  // Poll for activity every 30 seconds
+  // Refresh when page becomes visible (PWA wake, tab focus)
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        loadChallenges();
+        loadLeaderboard();
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [loadChallenges, loadLeaderboard]);
+
+  // Poll for activity and challenges every 30 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       checkActivity();
       loadLeaderboard();
+      loadChallenges(); // Also refresh challenges to stay in sync
     }, 30000);
     return () => clearInterval(interval);
-  }, [checkActivity, loadLeaderboard]);
+  }, [checkActivity, loadLeaderboard, loadChallenges]);
 
   // Save timers to localStorage
   useEffect(() => {
