@@ -22,6 +22,9 @@ function autoContinueChallenges(userId) {
     INSERT INTO daily_challenges (user_id, date, exercise, target_reps, interval_minutes)
     VALUES (?, ?, ?, ?, ?)
   `);
+  const migrateSetsStmt = db.prepare(`
+    UPDATE daily_challenge_sets SET challenge_id = ? WHERE challenge_id = ?
+  `);
 
   // Use a transaction for atomicity
   const continueAll = db.transaction(() => {
@@ -30,7 +33,11 @@ function autoContinueChallenges(userId) {
       endStmt.run(old.id);
 
       // Create a new one for today with the same settings
-      createStmt.run(userId, today, old.exercise, old.target_reps, old.interval_minutes);
+      const result = createStmt.run(userId, today, old.exercise, old.target_reps, old.interval_minutes);
+      const newId = result.lastInsertRowid;
+
+      // Migrate sets from old challenge to new one (keep today's progress!)
+      migrateSetsStmt.run(newId, old.id);
     }
   });
 
