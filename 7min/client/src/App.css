@@ -1388,6 +1388,7 @@ button.tiny {
 
 .auth-toggle .link-button {
   color: var(--accent);
+  padding: 0.25rem 0.5rem;
 }
 
 .auth-card.minimal label {
