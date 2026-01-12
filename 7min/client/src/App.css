@@ -2435,7 +2435,65 @@ button.tiny {
 .modal-hint {
   color: var(--text-secondary);
   font-size: 0.85rem;
-  margin: 0 0 1rem 0;
+  margin: 0 0 0.75rem 0;
+}
+
+.modal-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1rem 0;
+}
+
+.sets-log {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.sets-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.set-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+}
+
+.set-num {
+  color: var(--text-secondary);
+  min-width: 2rem;
+}
+
+.set-time {
+  color: var(--text-secondary);
+  min-width: 3.5rem;
+}
+
+.set-reps {
+  flex: 1;
+  font-weight: 500;
+}
+
+.set-delete {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1.2rem;
+  padding: 0 0.25rem;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.set-delete:hover {
+  opacity: 1;
+  color: var(--danger);
 }
 
 .modal-actions {

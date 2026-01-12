@@ -197,26 +197,86 @@ router.post('/:id/sets', authRequired, (req, res) => {
   });
 });
 
-// End a challenge
-router.post('/:id/end', authRequired, (req, res) => {
+// Get all sets for a challenge
+router.get('/:id/sets', authRequired, (req, res) => {
   const { id } = req.params;
-  
+
+  // Verify ownership
   const challenge = db.prepare(`
     SELECT * FROM daily_challenges WHERE id = ? AND user_id = ?
   `).get(id, req.user.id);
-  
+
   if (!challenge) {
     return res.status(404).json({ error: 'Utmaning finns inte' });
   }
-  
+
+  const sets = db.prepare(`
+    SELECT id, reps, retroactive, created_at
+    FROM daily_challenge_sets
+    WHERE challenge_id = ?
+    ORDER BY created_at ASC
+  `).all(id);
+
+  res.json({ sets });
+});
+
+// Delete a specific set
+router.post('/:id/sets/:setId/delete', authRequired, (req, res) => {
+  const { id, setId } = req.params;
+
+  // Verify challenge ownership
+  const challenge = db.prepare(`
+    SELECT * FROM daily_challenges WHERE id = ? AND user_id = ?
+  `).get(id, req.user.id);
+
+  if (!challenge) {
+    return res.status(404).json({ error: 'Utmaning finns inte' });
+  }
+
+  // Verify set belongs to this challenge
+  const set = db.prepare(`
+    SELECT * FROM daily_challenge_sets WHERE id = ? AND challenge_id = ?
+  `).get(setId, id);
+
+  if (!set) {
+    return res.status(404).json({ error: 'Set finns inte' });
+  }
+
+  db.prepare('DELETE FROM daily_challenge_sets WHERE id = ?').run(setId);
+
+  // Return updated stats
+  const stats = db.prepare(`
+    SELECT COUNT(*) as sets_count, COALESCE(SUM(reps), 0) as total_reps
+    FROM daily_challenge_sets WHERE challenge_id = ?
+  `).get(id);
+
+  res.json({
+    deleted: true,
+    sets_count: stats.sets_count,
+    total_reps: stats.total_reps
+  });
+});
+
+// End a challenge
+router.post('/:id/end', authRequired, (req, res) => {
+  const { id } = req.params;
+
+  const challenge = db.prepare(`
+    SELECT * FROM daily_challenges WHERE id = ? AND user_id = ?
+  `).get(id, req.user.id);
+
+  if (!challenge) {
+    return res.status(404).json({ error: 'Utmaning finns inte' });
+  }
+
   db.prepare(`UPDATE daily_challenges SET ended_at = datetime('now') WHERE id = ?`).run(id);
-  
+
   const updated = db.prepare('SELECT * FROM daily_challenges WHERE id = ?').get(id);
   const stats = db.prepare(`
     SELECT COUNT(*) as sets_count, COALESCE(SUM(reps), 0) as total_reps
     FROM daily_challenge_sets WHERE challenge_id = ?
   `).get(id);
-  
+
   res.json({ challenge: updated, ...stats });
 });
 

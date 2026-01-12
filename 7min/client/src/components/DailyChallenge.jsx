@@ -48,7 +48,9 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
   const [modalChallengeId, setModalChallengeId] = useState(null);
   const [modalType, setModalType] = useState(null);
   const [actualReps, setActualReps] = useState(0);
-  const [bulkSets, setBulkSets] = useState(1);
+  const [bulkSets, setBulkSets] = useState('1');
+  const [modalSets, setModalSets] = useState([]);
+  const [loadingSets, setLoadingSets] = useState(false);
   const [lastActivityCheck, setLastActivityCheck] = useState(() => new Date().toISOString());
 
   // Load challenges from backend
@@ -174,9 +176,10 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
   }
 
   async function addBulkSets(challengeId, numSets, repsPerSet) {
-    if (numSets <= 0) return;
+    const n = parseInt(numSets, 10) || 0;
+    if (n <= 0) return;
     try {
-      for (let i = 0; i < numSets; i++) {
+      for (let i = 0; i < n; i++) {
         await api(`/api/challenges/${challengeId}/sets`, {
           method: 'POST',
           body: JSON.stringify({ reps: repsPerSet, retroactive: true }),
@@ -184,7 +187,31 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
       }
       loadChallenges();
       loadLeaderboard();
-      closeModal();
+      await loadModalSets(challengeId);
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function loadModalSets(challengeId) {
+    setLoadingSets(true);
+    try {
+      const { sets } = await api(`/api/challenges/${challengeId}/sets`);
+      setModalSets(sets || []);
+    } catch (err) {
+      console.error('Failed to load sets:', err);
+      setModalSets([]);
+    } finally {
+      setLoadingSets(false);
+    }
+  }
+
+  async function deleteSet(challengeId, setId) {
+    try {
+      await api(`/api/challenges/${challengeId}/sets/${setId}/delete`, { method: 'POST' });
+      loadChallenges();
+      loadLeaderboard();
+      await loadModalSets(challengeId);
     } catch (err) {
       alert(err.message);
     }
@@ -206,19 +233,24 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
     }
   }
 
-  function openModal(challengeId, type) {
+  async function openModal(challengeId, type) {
     const c = challenges.find(ch => ch.id === challengeId);
     setModalChallengeId(challengeId);
     setModalType(type);
     setActualReps(c?.target_reps || 0);
-    setBulkSets(1);
+    setBulkSets('1');
+    setModalSets([]);
+    if (type === 'edit') {
+      await loadModalSets(challengeId);
+    }
   }
 
   function closeModal() {
     setModalChallengeId(null);
     setModalType(null);
     setActualReps(0);
-    setBulkSets(1);
+    setBulkSets('1');
+    setModalSets([]);
   }
 
   const canAddMore = challenges.length < MAX_CHALLENGES;
@@ -349,16 +381,43 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
             )}
             {modalType === 'edit' && (
               <>
-                <p className="modal-hint">Lägg till tidigare set</p>
+                {/* Set log */}
+                <div className="sets-log">
+                  <p className="modal-hint">Dagens logg ({modalSets.length} set)</p>
+                  {loadingSets ? (
+                    <p className="muted">Laddar...</p>
+                  ) : modalSets.length === 0 ? (
+                    <p className="muted">Inga set loggade än</p>
+                  ) : (
+                    <div className="sets-list">
+                      {modalSets.map((s, idx) => {
+                        const time = s.created_at ? new Date(s.created_at + 'Z').toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' }) : '—';
+                        return (
+                          <div key={s.id} className="set-row">
+                            <span className="set-num">#{idx + 1}</span>
+                            <span className="set-time">{time}</span>
+                            <span className="set-reps">{s.reps} reps</span>
+                            <button className="set-delete" onClick={() => deleteSet(modalChallengeId, s.id)} title="Ta bort">×</button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <hr className="modal-divider" />
+
+                {/* Add sets */}
+                <p className="modal-hint">Lägg till set</p>
                 <label className="setup-field"><span>Antal set</span>
-                  <input type="number" value={bulkSets} onChange={(e) => setBulkSets(Number(e.target.value))} min={1} max={20} autoFocus />
+                  <input type="text" inputMode="numeric" pattern="[0-9]*" value={bulkSets} onChange={(e) => setBulkSets(e.target.value)} autoFocus />
                 </label>
                 <label className="setup-field"><span>Reps per set</span>
                   <input type="number" value={actualReps} onChange={(e) => setActualReps(Number(e.target.value))} min={0} />
                 </label>
                 <div className="modal-actions">
-                  <button onClick={() => addBulkSets(modalChallengeId, bulkSets, actualReps)}>Lägg till {bulkSets} set</button>
-                  <button className="ghost" onClick={closeModal}>Avbryt</button>
+                  <button onClick={() => addBulkSets(modalChallengeId, bulkSets, actualReps)}>Lägg till {parseInt(bulkSets, 10) || 0} set</button>
+                  <button className="ghost" onClick={closeModal}>Stäng</button>
                 </div>
               </>
             )}
