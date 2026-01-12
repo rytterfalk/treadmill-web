@@ -218,10 +218,10 @@ router.get('/:id/sets', authRequired, (req, res) => {
   }
 
   const sets = db.prepare(`
-    SELECT id, reps, retroactive, created_at
+    SELECT id, reps, retroactive, logged_at
     FROM daily_challenge_sets
     WHERE challenge_id = ?
-    ORDER BY created_at ASC
+    ORDER BY logged_at ASC
   `).all(id);
 
   res.json({ sets });
