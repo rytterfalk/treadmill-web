@@ -2620,3 +2620,84 @@ button.tiny {
 .session.challenge-session .session-title {
   color: var(--text-primary);
 }
+
+/* Weekly history */
+.challenge-history {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.history-day {
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.history-day-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+}
+
+.history-day-header .day-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  text-transform: capitalize;
+}
+
+.history-day-header .day-date {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.history-day-users {
+  display: flex;
+  flex-direction: column;
+}
+
+.history-user {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.history-user:last-child {
+  border-bottom: none;
+}
+
+.history-user.me {
+  background: rgba(247, 199, 43, 0.08);
+}
+
+.history-user-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.history-user-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.history-item {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  padding-left: 0.5rem;
+}
+
+.history-item.challenge {
+  color: var(--text-secondary);
+}
+
+.history-item.workout {
+  color: var(--accent);
+}

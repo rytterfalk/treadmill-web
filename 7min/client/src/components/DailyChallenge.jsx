@@ -24,6 +24,11 @@ async function api(path, options = {}) {
 }
 
 function getNextAlignedTime(intervalMins, afterTime = Date.now()) {
+  // For intervals >= 60min, don't try to align to clock - just add the interval
+  if (intervalMins >= 60) {
+    return afterTime + intervalMins * 60 * 1000;
+  }
+  // For shorter intervals, align to clock (e.g. :00, :15, :30, :45 for 15min)
   const d = new Date(afterTime);
   const mins = d.getMinutes();
   const alignedMinute = Math.ceil(mins / intervalMins) * intervalMins;
@@ -32,9 +37,30 @@ function getNextAlignedTime(intervalMins, afterTime = Date.now()) {
   return d.getTime();
 }
 
+const DAY_NAMES = ['söndag', 'måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag', 'lördag'];
+
+function getDayName(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  if (d.toDateString() === today.toDateString()) return 'idag';
+  if (d.toDateString() === yesterday.toDateString()) return 'igår';
+  return DAY_NAMES[d.getDay()];
+}
+
+function formatDuration(sec) {
+  if (!sec) return '';
+  const m = Math.round(sec / 60);
+  return `${m} min`;
+}
+
 function DailyChallenge({ onSaveDay, currentUserId }) {
   const [challenges, setChallenges] = useState([]);
   const [leaderboard, setLeaderboard] = useState([]);
+  const [history, setHistory] = useState({ dates: [], challenges: [], workouts: [] });
   const [activity, setActivity] = useState([]);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showSetup, setShowSetup] = useState(false);
@@ -73,6 +99,16 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
     }
   }, []);
 
+  // Load weekly history
+  const loadHistory = useCallback(async () => {
+    try {
+      const data = await api('/api/challenges/history');
+      setHistory(data || { dates: [], challenges: [], workouts: [] });
+    } catch (err) {
+      console.error('Failed to load history:', err);
+    }
+  }, []);
+
   // Check for new activity (notifications)
   const checkActivity = useCallback(async () => {
     try {
@@ -90,7 +126,8 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
   useEffect(() => {
     loadChallenges();
     loadLeaderboard();
-  }, [loadChallenges, loadLeaderboard]);
+    loadHistory();
+  }, [loadChallenges, loadLeaderboard, loadHistory]);
 
   // Refresh when page becomes visible (PWA wake, tab focus)
   useEffect(() => {
@@ -98,18 +135,19 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
       if (document.visibilityState === 'visible') {
         loadChallenges();
         loadLeaderboard();
+        loadHistory();
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [loadChallenges, loadLeaderboard]);
+  }, [loadChallenges, loadLeaderboard, loadHistory]);
 
   // Poll for activity and challenges every 30 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       checkActivity();
       loadLeaderboard();
-      loadChallenges(); // Also refresh challenges to stay in sync
+      loadChallenges();
     }, 30000);
     return () => clearInterval(interval);
   }, [checkActivity, loadLeaderboard, loadChallenges]);
@@ -170,6 +208,7 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
       setTimers({ ...timers, [challengeId]: getNextAlignedTime(c.interval_minutes, Date.now()) });
       closeModal();
       loadLeaderboard();
+      loadHistory();
     } catch (err) {
       alert(err.message);
     }
@@ -187,6 +226,7 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
       }
       loadChallenges();
       loadLeaderboard();
+      loadHistory();
       await loadModalSets(challengeId);
     } catch (err) {
       alert(err.message);
@@ -228,6 +268,7 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
       delete newTimers[challengeId];
       setTimers(newTimers);
       loadLeaderboard();
+      loadHistory();
     } catch (err) {
       alert(err.message);
     }
@@ -256,7 +297,7 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
   const canAddMore = challenges.length < MAX_CHALLENGES;
   const modalChallenge = challenges.find(c => c.id === modalChallengeId);
 
-  // Group leaderboard by user
+  // Group leaderboard by user (today only - for quick view)
   const leaderboardByUser = leaderboard.reduce((acc, item) => {
     const key = item.user_id;
     if (!acc[key]) acc[key] = { user_name: item.user_name, user_id: item.user_id, total_reps: 0, challenges: [] };
@@ -265,6 +306,32 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
     return acc;
   }, {});
   const sortedLeaderboard = Object.values(leaderboardByUser).sort((a, b) => b.total_reps - a.total_reps);
+
+  // Build weekly history grouped by date, then by user
+  const historyByDate = (history.dates || []).map(date => {
+    const dayName = getDayName(date);
+    const dateStr = date.slice(5).replace('-', '/'); // "01/12" format
+
+    // Get all challenges for this date
+    const dayChallenges = (history.challenges || []).filter(c => c.date === date);
+    // Get all workouts for this date
+    const dayWorkouts = (history.workouts || []).filter(w => w.date === date);
+
+    // Group by user
+    const byUser = {};
+    dayChallenges.forEach(c => {
+      if (!byUser[c.user_id]) byUser[c.user_id] = { user_name: c.user_name, user_id: c.user_id, items: [] };
+      byUser[c.user_id].items.push({ type: 'challenge', exercise: c.exercise, total_reps: c.total_reps, sets_count: c.sets_count });
+    });
+    dayWorkouts.forEach(w => {
+      if (!byUser[w.user_id]) byUser[w.user_id] = { user_name: w.user_name, user_id: w.user_id, items: [] };
+      const title = w.template_title || w.session_type || 'Träning';
+      byUser[w.user_id].items.push({ type: 'workout', title, duration_sec: w.duration_sec, session_type: w.session_type });
+    });
+
+    const users = Object.values(byUser);
+    return { date, dayName, dateStr, users, hasActivity: users.length > 0 };
+  });
 
   return (
     <div className="daily-challenges-wrapper">
@@ -342,20 +409,37 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
         ) : null}
       </div>
 
-      {/* Leaderboard toggle */}
-      {sortedLeaderboard.length > 0 && (
+      {/* Weekly history / leaderboard */}
+      {historyByDate.some(d => d.hasActivity) && (
         <div className="challenge-leaderboard-section">
           <button className="leaderboard-toggle" onClick={() => setShowLeaderboard(!showLeaderboard)}>
-            🏆 Topplista {showLeaderboard ? '▲' : '▼'}
+            🏆 Veckans träning {showLeaderboard ? '▲' : '▼'}
           </button>
           {showLeaderboard && (
-            <div className="challenge-leaderboard">
-              {sortedLeaderboard.map((entry, i) => (
-                <div key={entry.user_id} className={`leaderboard-entry ${entry.user_id === currentUserId ? 'me' : ''}`}>
-                  <span className="lb-rank">{i + 1}</span>
-                  <span className="lb-name">{entry.user_name}</span>
-                  <span className="lb-reps">{entry.total_reps} reps</span>
-                  <span className="lb-exercises">{entry.challenges.map(c => c.exercise).join(', ')}</span>
+            <div className="challenge-history">
+              {historyByDate.filter(d => d.hasActivity).map(day => (
+                <div key={day.date} className="history-day">
+                  <div className="history-day-header">
+                    <span className="day-name">{day.dayName}</span>
+                    <span className="day-date">{day.dateStr}</span>
+                  </div>
+                  <div className="history-day-users">
+                    {day.users.map(user => (
+                      <div key={user.user_id} className={`history-user ${user.user_id === currentUserId ? 'me' : ''}`}>
+                        <span className="history-user-name">{user.user_name}</span>
+                        <div className="history-user-items">
+                          {user.items.map((item, idx) => (
+                            <span key={idx} className={`history-item ${item.type}`}>
+                              {item.type === 'challenge'
+                                ? `${item.exercise}: ${item.total_reps} reps (${item.sets_count} set)`
+                                : `${item.title} ${formatDuration(item.duration_sec)}`
+                              }
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
@@ -391,7 +475,7 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
                   ) : (
                     <div className="sets-list">
                       {modalSets.map((s, idx) => {
-                        const time = s.created_at ? new Date(s.created_at + 'Z').toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' }) : '—';
+                        const time = s.logged_at ? new Date(s.logged_at + 'Z').toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' }) : '—';
                         return (
                           <div key={s.id} className="set-row">
                             <span className="set-num">#{idx + 1}</span>
