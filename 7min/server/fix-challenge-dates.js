@@ -3,15 +3,15 @@
  * One-time script to fix daily_challenge_sets that were incorrectly migrated
  * to new challenges. This moves sets back to the challenge matching their
  * logged_at date.
- * 
+ *
  * Run with: node fix-challenge-dates.js
  */
 
 const Database = require('better-sqlite3');
-const path = require('path');
+const { DB_PATH } = require('./config');
 
-const dbPath = path.join(__dirname, 'database.sqlite');
-const db = new Database(dbPath);
+console.log(`Using database: ${DB_PATH}`);
+const db = new Database(DB_PATH);
 
 console.log('Analyzing sets with mismatched dates...\n');
 
