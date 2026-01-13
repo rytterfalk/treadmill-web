@@ -1,8 +1,17 @@
 const WEEKDAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
 
+// Helper to get local date as YYYY-MM-DD string (respects user's timezone)
+function getLocalDateString(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function WeekProgress({ days, cap = 60, selectedDate, onSelectDate }) {
   // Get current week (Mon-Sun)
   const today = new Date();
+  const todayStr = getLocalDateString(today);
   const currentDayOfWeek = today.getDay(); // 0=Sun, 1=Mon, ...
   const mondayOffset = currentDayOfWeek === 0 ? -6 : 1 - currentDayOfWeek;
 
@@ -10,15 +19,15 @@ function WeekProgress({ days, cap = 60, selectedDate, onSelectDate }) {
   for (let i = 0; i < 7; i++) {
     const date = new Date(today);
     date.setDate(today.getDate() + mondayOffset + i);
-    const dateStr = date.toISOString().slice(0, 10);
+    const dateStr = getLocalDateString(date);
     const dayData = days?.find(d => d.date === dateStr);
     weekDays.push({
       date: dateStr,
       weekday: WEEKDAYS[i],
       points: dayData?.points || 0,
       hitCap: dayData?.hitCap || false,
-      isToday: dateStr === today.toISOString().slice(0, 10),
-      isPast: date < new Date(today.toISOString().slice(0, 10)),
+      isToday: dateStr === todayStr,
+      isPast: dateStr < todayStr,
       isSelected: dateStr === selectedDate,
     });
   }

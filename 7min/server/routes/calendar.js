@@ -40,8 +40,13 @@ function parseDate(value) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+// Helper to get local date as YYYY-MM-DD string
+// This respects the server's timezone (which should match the user's timezone)
 function dateKey(dateObj) {
-  return dateObj.toISOString().slice(0, 10);
+  const year = dateObj.getFullYear();
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function clampPoints(points) {
@@ -138,16 +143,17 @@ router.get('/summary', authRequired, (req, res) => {
     return res.status(400).json({ error: '"from" måste vara före "to"' });
   }
 
+  // Use 'localtime' modifier to convert UTC timestamps to local timezone for date grouping
   const rows = db
     .prepare(
       `SELECT ws.id, ws.user_id, ws.template_id, ws.session_type, ws.started_at, ws.ended_at, ws.duration_sec, ws.notes, ws.source, ws.created_at,
               pp.method AS program_method,
-              COALESCE(pd.date, date(COALESCE(ws.started_at, ws.ended_at, ws.created_at))) AS day
+              COALESCE(pd.date, date(COALESCE(ws.started_at, ws.ended_at, ws.created_at), 'localtime')) AS day
        FROM workout_sessions ws
        LEFT JOIN progressive_program_days pd ON pd.id = ws.program_day_id
        LEFT JOIN progressive_programs pp ON pp.id = pd.program_id
        WHERE ws.user_id = ?
-         AND date(COALESCE(pd.date, COALESCE(ws.started_at, ws.ended_at, ws.created_at))) BETWEEN date(?) AND date(?)
+         AND date(COALESCE(pd.date, COALESCE(ws.started_at, ws.ended_at, ws.created_at)), 'localtime') BETWEEN date(?) AND date(?)
        ORDER BY ws.started_at ASC`
     )
     .all(req.user.id, from, to);
@@ -178,16 +184,17 @@ router.get('/weekbars', authRequired, (req, res) => {
   start.setUTCDate(end.getUTCDate() - weeks * 7 + 1);
 
   // Get workout sessions
+  // Use 'localtime' modifier to convert UTC timestamps to local timezone for date grouping
   const rows = db
     .prepare(
       `SELECT ws.id, ws.session_type, ws.duration_sec, ws.started_at, ws.ended_at, ws.created_at,
               pp.method AS program_method,
-              COALESCE(pd.date, date(COALESCE(ws.started_at, ws.ended_at, ws.created_at))) AS day
+              COALESCE(pd.date, date(COALESCE(ws.started_at, ws.ended_at, ws.created_at), 'localtime')) AS day
        FROM workout_sessions ws
        LEFT JOIN progressive_program_days pd ON pd.id = ws.program_day_id
        LEFT JOIN progressive_programs pp ON pp.id = pd.program_id
        WHERE ws.user_id = ?
-         AND date(COALESCE(pd.date, COALESCE(ws.started_at, ws.ended_at, ws.created_at))) BETWEEN date(?) AND date(?)
+         AND date(COALESCE(pd.date, COALESCE(ws.started_at, ws.ended_at, ws.created_at)), 'localtime') BETWEEN date(?) AND date(?)
        ORDER BY ws.started_at ASC`
     )
     .all(req.user.id, dateKey(start), dateKey(end));

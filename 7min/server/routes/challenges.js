@@ -4,10 +4,19 @@ const { authRequired } = require('../auth');
 
 const router = express.Router();
 
+// Helper to get local date as YYYY-MM-DD string
+// This respects the server's timezone (which should match the user's timezone)
+function getLocalDateString(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 // Auto-continue challenges from previous days
 // This is called lazily when fetching challenges
 function autoContinueChallenges(userId) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalDateString();
 
   // Find active challenges from previous days (not ended, date < today)
   const oldChallenges = db.prepare(`
@@ -46,7 +55,7 @@ function autoContinueChallenges(userId) {
 
 // Get user's active challenges for today
 router.get('/my', authRequired, (req, res) => {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalDateString();
 
   // Auto-continue any challenges from previous days
   autoContinueChallenges(req.user.id);
@@ -75,7 +84,7 @@ router.get('/history', authRequired, (req, res) => {
   for (let i = 0; i < 7; i++) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
-    dates.push(d.toISOString().slice(0, 10));
+    dates.push(getLocalDateString(d));
   }
 
   if (!from) from = dates[dates.length - 1]; // oldest date
@@ -100,6 +109,7 @@ router.get('/history', authRequired, (req, res) => {
   `).all(from, to);
 
   // Get all workout sessions for the date range (HIIT, strength, etc)
+  // Use 'localtime' modifier to convert UTC timestamps to local timezone
   const workouts = db.prepare(`
     SELECT
       ws.id,
@@ -111,12 +121,12 @@ router.get('/history', authRequired, (req, res) => {
       ws.started_at,
       ws.ended_at,
       wt.title as template_title,
-      date(COALESCE(ws.started_at, ws.ended_at, ws.created_at)) as date
+      date(COALESCE(ws.started_at, ws.ended_at, ws.created_at), 'localtime') as date
     FROM workout_sessions ws
     JOIN users u ON u.id = ws.user_id
     LEFT JOIN workout_templates wt ON wt.id = ws.template_id
-    WHERE date(COALESCE(ws.started_at, ws.ended_at, ws.created_at)) >= ?
-      AND date(COALESCE(ws.started_at, ws.ended_at, ws.created_at)) <= ?
+    WHERE date(COALESCE(ws.started_at, ws.ended_at, ws.created_at), 'localtime') >= ?
+      AND date(COALESCE(ws.started_at, ws.ended_at, ws.created_at), 'localtime') <= ?
     ORDER BY COALESCE(ws.started_at, ws.ended_at, ws.created_at) DESC
   `).all(from, to);
 
@@ -125,7 +135,7 @@ router.get('/history', authRequired, (req, res) => {
 
 // Get leaderboard for today (all active challenges from all users)
 router.get('/leaderboard', authRequired, (req, res) => {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalDateString();
   const leaderboard = db.prepare(`
     SELECT
       dc.id,
@@ -151,7 +161,7 @@ router.get('/leaderboard', authRequired, (req, res) => {
 // Get recent activity (sets from today, for notifications)
 router.get('/activity', authRequired, (req, res) => {
   const { since } = req.query; // ISO timestamp
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalDateString();
   
   let query = `
     SELECT 
@@ -185,8 +195,8 @@ router.post('/', authRequired, (req, res) => {
   if (!exercise) {
     return res.status(400).json({ error: 'Övning krävs' });
   }
-  
-  const today = new Date().toISOString().slice(0, 10);
+
+  const today = getLocalDateString();
   
   // Check max 3 active challenges per day
   const activeCount = db.prepare(`

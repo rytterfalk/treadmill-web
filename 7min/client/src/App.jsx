@@ -20,6 +20,14 @@ const defaultExercises = [
   { title: 'Planka', durationSeconds: 40, restSeconds: 15, notes: 'Håll höfterna stilla' },
 ];
 
+// Helper to get local date as YYYY-MM-DD string (respects user's timezone)
+function getLocalDateString(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 async function api(path, options = {}) {
   const res = await fetch(path, {
     credentials: 'include',
@@ -79,8 +87,7 @@ function App() {
   const [weekChallenges, setWeekChallenges] = useState([]);
   const [selectedProgressDate, setSelectedProgressDate] = useState(null); // For Progress view day filter
   const [selectedDate, setSelectedDate] = useState(() => {
-    const today = new Date();
-    return today.toISOString().slice(0, 10);
+    return getLocalDateString();
   });
   const [daySessions, setDaySessions] = useState([]);
   const [pointsCap, setPointsCap] = useState(60);
@@ -89,8 +96,8 @@ function App() {
     const start = new Date();
     start.setDate(end.getDate() - 27); // 28 dagar
     return {
-      from: start.toISOString().slice(0, 10),
-      to: end.toISOString().slice(0, 10),
+      from: getLocalDateString(start),
+      to: getLocalDateString(end),
     };
   });
   const [favorites, setFavorites] = useState(() => {
@@ -172,7 +179,7 @@ function App() {
     if (!user) return;
     if (view !== 'dashboard') return;
     loadTodayThing();
-    loadDaySessions(new Date().toISOString().slice(0, 10));
+    loadDaySessions(getLocalDateString());
   }, [user, view]);
 
   useEffect(() => {
@@ -411,7 +418,7 @@ function App() {
         }),
       });
       loadSessions();
-      loadDaySessions(new Date().toISOString().slice(0, 10));
+      loadDaySessions(getLocalDateString());
       if (view === 'calendar') {
         loadCalendar();
         if (selectedDate) loadDaySessions(selectedDate);
@@ -465,8 +472,8 @@ function App() {
     const sunday = new Date(monday);
     sunday.setDate(monday.getDate() + 6);
     return {
-      from: monday.toISOString().slice(0, 10),
-      to: sunday.toISOString().slice(0, 10),
+      from: getLocalDateString(monday),
+      to: getLocalDateString(sunday),
     };
   }
 
@@ -548,8 +555,8 @@ function App() {
     from.setDate(today.getDate() - 13);
     const to = new Date(today);
     to.setDate(today.getDate() + 14);
-    const fromIso = from.toISOString().slice(0, 10);
-    const toIso = to.toISOString().slice(0, 10);
+    const fromIso = getLocalDateString(from);
+    const toIso = getLocalDateString(to);
 
     const data = await api(`/api/progressive-programs/${programId}?from=${fromIso}&to=${toIso}`);
     setProgressiveDays(data.days || []);
@@ -562,13 +569,14 @@ function App() {
     const day = d.getDay(); // 0 Sun .. 6 Sat
     const diff = day === 0 ? -6 : 1 - day; // Monday as start
     d.setDate(d.getDate() + diff);
-    return d.toISOString().slice(0, 10);
+    return getLocalDateString(d);
   }
 
   function addDaysIso(iso, offset) {
-    const d = new Date(`${iso}T00:00:00.000Z`);
-    d.setUTCDate(d.getUTCDate() + offset);
-    return d.toISOString().slice(0, 10);
+    // Parse the date as local time, not UTC
+    const d = new Date(`${iso}T12:00:00`);
+    d.setDate(d.getDate() + offset);
+    return getLocalDateString(d);
   }
 
   const selectedProgressiveProgram = useMemo(() => {
@@ -577,7 +585,7 @@ function App() {
   }, [progressivePrograms, selectedProgressiveProgramId]);
 
   const nextTestDate = useMemo(() => {
-    const todayIso = new Date().toISOString().slice(0, 10);
+    const todayIso = getLocalDateString();
     const next = progressiveDays.find(
       (d) => d.day_type === 'test' && d.status === 'planned' && d.date >= todayIso
     );
@@ -585,7 +593,7 @@ function App() {
   }, [progressiveDays]);
 
   const upcomingRows = useMemo(() => {
-    const todayIso = new Date().toISOString().slice(0, 10);
+    const todayIso = getLocalDateString();
     const byDate = new Map(progressiveDays.map((d) => [d.date, d]));
     return Array.from({ length: 14 }, (_, i) => {
       const date = addDaysIso(todayIso, i);
@@ -1412,7 +1420,7 @@ function App() {
         </section>
 
         {(() => {
-          const today = new Date().toISOString().slice(0, 10);
+          const today = getLocalDateString();
           const todaySessions = (daySessions || []).filter((s) => workoutDayKey(s) === today);
           if (todaySessions.length === 0) return null;
           return (
