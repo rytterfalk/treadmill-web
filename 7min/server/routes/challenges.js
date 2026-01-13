@@ -15,6 +15,8 @@ function getLocalDateString(date = new Date()) {
 
 // Auto-continue challenges from previous days
 // This is called lazily when fetching challenges
+// The old challenge is ended and a new one is created for today (starting at 0 reps)
+// Sets stay on their original challenge so history is preserved correctly
 function autoContinueChallenges(userId) {
   const today = getLocalDateString();
 
@@ -31,22 +33,15 @@ function autoContinueChallenges(userId) {
     INSERT INTO daily_challenges (user_id, date, exercise, target_reps, interval_minutes)
     VALUES (?, ?, ?, ?, ?)
   `);
-  const migrateSetsStmt = db.prepare(`
-    UPDATE daily_challenge_sets SET challenge_id = ? WHERE challenge_id = ?
-  `);
 
   // Use a transaction for atomicity
   const continueAll = db.transaction(() => {
     for (const old of oldChallenges) {
-      // End the old challenge
+      // End the old challenge (preserving its sets for history)
       endStmt.run(old.id);
 
-      // Create a new one for today with the same settings
-      const result = createStmt.run(userId, today, old.exercise, old.target_reps, old.interval_minutes);
-      const newId = result.lastInsertRowid;
-
-      // Migrate sets from old challenge to new one (keep today's progress!)
-      migrateSetsStmt.run(newId, old.id);
+      // Create a new one for today with the same settings (starts at 0 reps)
+      createStmt.run(userId, today, old.exercise, old.target_reps, old.interval_minutes);
     }
   });
 
