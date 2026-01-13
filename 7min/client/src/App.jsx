@@ -1419,48 +1419,7 @@ function App() {
           )}
         </section>
 
-        {(() => {
-          const today = getLocalDateString();
-          const todaySessions = (daySessions || []).filter((s) => workoutDayKey(s) === today);
-          if (todaySessions.length === 0) return null;
-          return (
-            <section className="panel today-sessions-panel">
-              <div className="panel-header">
-                <div>
-                  <p className="eyebrow">Idag</p>
-                  <h3>Genomförda pass</h3>
-                </div>
-                <span className="badge">{todaySessions.length} pass</span>
-              </div>
-              <div className="today-sessions-list">
-                {todaySessions.map((session) => {
-                  const iso = session.started_at || session.ended_at || session.created_at;
-                  const d = iso ? new Date(iso) : null;
-                  const duration = formatDurationLong(
-                    session.duration_sec,
-                    session.started_at,
-                    session.ended_at
-                  );
-                  const repsTotal = totalRepsFromWorkout(session);
-                  return (
-                    <div key={session.id} className="today-session-item">
-                      <div className="session-info">
-                        <span className="session-title">{workoutTitle(session)}</span>
-                        <span className="session-duration">{duration || 'Okänd tid'}</span>
-                      </div>
-                      <span className="session-time-small">
-                        {repsTotal ? `${repsTotal} reps • ` : ''}
-                        {d
-                          ? d.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })
-                          : '—'}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          );
-        })()}
+{/* Genomförda pass visas nu i "Veckans träning" i DailyChallenge-komponenten */}
       </div>
     </div>
   );

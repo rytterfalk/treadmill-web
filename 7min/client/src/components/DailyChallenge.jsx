@@ -450,12 +450,19 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
                         <span className="history-user-name">{user.user_name}</span>
                         <div className="history-user-items">
                           {user.items.map((item, idx) => (
-                            <span key={idx} className={`history-item ${item.type}`}>
-                              {item.type === 'challenge'
-                                ? `${item.exercise}: ${item.total_reps} reps (${item.sets_count} set)`
-                                : `${item.title} ${formatDuration(item.duration_sec)}`
-                              }
-                            </span>
+                            <div key={idx} className={`history-item ${item.type}`}>
+                              {item.type === 'challenge' ? (
+                                <>
+                                  <span className="item-name">{item.exercise}:</span>
+                                  <span className="item-value">{item.total_reps} reps ({item.sets_count} set)</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="item-name">{item.title.toLowerCase()}</span>
+                                  <span className="item-value">{formatDuration(item.duration_sec)}</span>
+                                </>
+                              )}
+                            </div>
                           ))}
                         </div>
                       </div>
