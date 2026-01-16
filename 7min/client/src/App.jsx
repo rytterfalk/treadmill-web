@@ -1267,84 +1267,69 @@ function App() {
       {status && <div className="status floating">{status}</div>}
 
       <div className="start-view">
+        {/* Only show "Dagens grej" if there's an active progressive program */}
+        {todayThing?.kind === 'program_day' && (
         <section className="panel today-thing-panel today-thing-compact">
           <div className="panel-header">
             <div>
               <p className="eyebrow">Dagens grej</p>
               <h3>
-                {todayThing?.kind === 'program_day'
-                  ? `${todayThing.program?.exercise_key} • ${todayThing.program?.method}`
-                  : todayThingStatus === 'loading'
-                    ? 'Laddar…'
-                    : 'Inget planerat'}
+                {`${todayThing.program?.exercise_key} • ${todayThing.program?.method}`}
               </h3>
             </div>
-            {todayThing?.kind === 'program_day' ? (
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <span className="badge">
-                  {todayThing.program_day?.status === 'done'
-                    ? 'genomförd'
-                    : todayThing.program_day?.day_type}
-                </span>
-                {todayThing.program_day?.status === 'done' && todayThingSummary?.durationLabel ? (
-                  <span className="badge">{todayThingSummary.durationLabel}</span>
-                ) : null}
-                {todayThing.program_day?.status === 'done' && todayThingSummary?.repsLabel ? (
-                  <span className="badge">{todayThingSummary.repsLabel}</span>
-                ) : null}
-              </div>
-            ) : null}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span className="badge">
+                {todayThing.program_day?.status === 'done'
+                  ? 'genomförd'
+                  : todayThing.program_day?.day_type}
+              </span>
+              {todayThing.program_day?.status === 'done' && todayThingSummary?.durationLabel ? (
+                <span className="badge">{todayThingSummary.durationLabel}</span>
+              ) : null}
+              {todayThing.program_day?.status === 'done' && todayThingSummary?.repsLabel ? (
+                <span className="badge">{todayThingSummary.repsLabel}</span>
+              ) : null}
+            </div>
           </div>
 
-        {todayThing?.kind === 'program_day' ? (
-          <>
-            {todayThing.program_day?.day_type === 'rest' ? (
-              <p className="muted" style={{ margin: '0.25rem 0 0' }}>
-                Vilodag. Kom tillbaka nästa träningsdag.
-              </p>
-            ) : todayThing.program_day?.status === 'done' ? (
-              <p className="muted" style={{ margin: '0.25rem 0 0' }}>
-                Genomförd.
-                {todayThingSummary?.repsLabel
-                  ? ` ${formatExerciseLabel(todayThingSummary.exercise) || 'Totalt'}: ${
-                      todayThingSummary.repsLabel
-                    }.`
-                  : ''}
-                {' '}Bra jobbat!
-              </p>
-            ) : todayThing.program_day?.day_type === 'workout' ? (
-              <div className="actions-row">
-                <button
-                  onClick={() =>
-                    (window.location.href = `/workout/program-day/${todayThing.program_day.id}`)
-                    }
-                  >
-                    Starta
-                  </button>
-                </div>
-              ) : (
-                <div className="actions-row">
-                  <button
-                    className="ghost"
-                    onClick={() =>
-                      (window.location.href = `/workout/program-day/${todayThing.program_day.id}`)
-                    }
-                  >
-                    Starta test
-                  </button>
-                </div>
-              )}
-            </>
-          ) : todayThingStatus === 'error' ? (
-            <p className="muted" style={{ margin: 0 }}>Kunde inte ladda dagens plan.</p>
+          {todayThing.program_day?.day_type === 'rest' ? (
+            <p className="muted" style={{ margin: '0.25rem 0 0' }}>
+              Vilodag. Kom tillbaka nästa träningsdag.
+            </p>
+          ) : todayThing.program_day?.status === 'done' ? (
+            <p className="muted" style={{ margin: '0.25rem 0 0' }}>
+              Genomförd.
+              {todayThingSummary?.repsLabel
+                ? ` ${formatExerciseLabel(todayThingSummary.exercise) || 'Totalt'}: ${
+                    todayThingSummary.repsLabel
+                  }.`
+                : ''}
+              {' '}Bra jobbat!
+            </p>
+          ) : todayThing.program_day?.day_type === 'workout' ? (
+            <div className="actions-row">
+              <button
+                onClick={() =>
+                  (window.location.href = `/workout/program-day/${todayThing.program_day.id}`)
+                }
+              >
+                Starta
+              </button>
+            </div>
           ) : (
             <div className="actions-row">
-              <button className="ghost" onClick={() => setView('programs')}>
-                Skapa progressivt program →
+              <button
+                className="ghost"
+                onClick={() =>
+                  (window.location.href = `/workout/program-day/${todayThing.program_day.id}`)
+                }
+              >
+                Starta test
               </button>
             </div>
           )}
         </section>
+        )}
 
         {/* Daily Challenge */}
         <DailyChallenge
