@@ -2105,7 +2105,7 @@ button.tiny {
 
 .challenge-card-header {
   display: flex;
-  align-items: flex-start;
+  align-items: baseline;
   justify-content: space-between;
   gap: 0.5rem;
   margin-bottom: 0.5rem;
@@ -2742,6 +2742,13 @@ button.tiny {
 .daily-challenge-card.expanded .challenge-card-header {
   margin-bottom: 1rem;
   flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  align-items: baseline;
+}
+
+.daily-challenge-card.expanded .challenge-card-title {
+  flex-direction: row;
+  align-items: baseline;
   gap: 0.5rem;
 }
 
@@ -2756,7 +2763,7 @@ button.tiny {
 /* Stats inline in header */
 .challenge-card-stats-inline {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 0.35rem;
   font-size: 0.85rem;
   color: var(--text-secondary);
