@@ -2728,11 +2728,128 @@ button.tiny {
    TIMED CHALLENGES - Full-width cards and timer overlay
    ═══════════════════════════════════════════════════════════ */
 
-/* Full-width challenge cards */
+/* Full-width expanded challenge cards */
 .daily-challenge-card.full-width {
   flex: 1 1 100%;
   max-width: 100%;
   min-width: 100%;
+}
+
+.daily-challenge-card.expanded {
+  padding: 1rem 1.25rem;
+}
+
+.daily-challenge-card.expanded .challenge-card-header {
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.daily-challenge-card.expanded .challenge-card-title strong {
+  font-size: 1.1rem;
+}
+
+.daily-challenge-card.expanded .challenge-card-meta {
+  font-size: 0.8rem;
+}
+
+/* Stats inline in header */
+.challenge-card-stats-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-left: auto;
+}
+
+.challenge-card-stats-inline .stats-separator {
+  opacity: 0.5;
+}
+
+/* Main action area */
+.challenge-card-main {
+  margin-bottom: 1rem;
+}
+
+/* Large log button */
+.log-button-large {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1.25rem 1.5rem;
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 1.2rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.log-button-large:hover {
+  filter: brightness(1.1);
+  transform: scale(1.02);
+}
+
+.log-button-large:active {
+  transform: scale(0.98);
+}
+
+.log-button-large .log-button-icon {
+  font-size: 1.5rem;
+}
+
+.log-button-large.timed {
+  background: #4caf50;
+  color: #fff;
+}
+
+/* Countdown display when waiting */
+.challenge-countdown-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-md);
+}
+
+.challenge-countdown-display .countdown-label {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.25rem;
+}
+
+.challenge-countdown-display .countdown-time {
+  font-size: 2rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+/* Footer actions */
+.challenge-card-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.challenge-card-footer button {
+  font-size: 0.8rem;
+}
+
+.challenge-card-footer button.muted {
+  opacity: 0.5;
+}
+
+.challenge-card-footer button.muted:hover {
+  opacity: 1;
 }
 
 .daily-challenge-card.timed {
@@ -2745,7 +2862,7 @@ button.tiny {
   background: linear-gradient(135deg, rgba(76, 175, 80, 0.15) 0%, var(--bg-card) 100%);
 }
 
-/* Timed quick button */
+/* Timed quick button - deprecated, using log-button-large.timed now */
 .log-quick.timed {
   background: #4caf50;
 }
@@ -2860,4 +2977,32 @@ button.tiny {
 .timed-challenge-stop.cancel {
   background: var(--bg-elevated);
   color: var(--text-secondary);
+}
+
+/* Confirmation modal */
+.challenge-modal.confirm-modal {
+  max-width: 340px;
+}
+
+.challenge-modal .confirm-text {
+  color: var(--text-primary);
+  margin: 0.5rem 0 1rem 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.challenge-modal .confirm-hint {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  margin: 0 0 1rem 0;
+  padding: 0.75rem;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+  line-height: 1.4;
+}
+
+.modal-actions button.danger {
+  background: #ff6b6b;
+  color: #fff;
+  border: none;
 }

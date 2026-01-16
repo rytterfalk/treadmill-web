@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 const INTERVAL_OPTIONS = [
   { value: 15, label: '15 min' },
@@ -22,6 +22,44 @@ const TIMED_PRESETS = [
 const MAX_CHALLENGES = 3;
 const TIMER_STORAGE_KEY = '7min_challenge_timers'; // Local timers only
 const COUNTDOWN_SECONDS = 5; // Countdown before timed challenge starts
+
+// Audio context for beep sounds (lazy init)
+let audioCtx = null;
+function getAudioContext() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return audioCtx;
+}
+
+// Play a beep sound
+function playBeep(frequency = 800, duration = 0.15, volume = 0.3) {
+  try {
+    const ctx = getAudioContext();
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    oscillator.frequency.value = frequency;
+    oscillator.type = 'sine';
+    gainNode.gain.setValueAtTime(volume, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+    oscillator.start(ctx.currentTime);
+    oscillator.stop(ctx.currentTime + duration);
+  } catch (e) {
+    // Audio not available
+  }
+}
+
+// Short beep for countdown
+function playCountdownBeep() {
+  playBeep(600, 0.1, 0.25);
+}
+
+// Longer beep for GO!
+function playStartBeep() {
+  playBeep(900, 0.3, 0.4);
+}
 
 async function api(path, options = {}) {
   const res = await fetch(path, {
@@ -114,6 +152,10 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
   const [activeTimer, setActiveTimer] = useState(null); // { challengeId, phase: 'countdown'|'running', startTime, targetSeconds }
   const [timerDisplay, setTimerDisplay] = useState(0); // Current timer value in seconds
   const [actualSeconds, setActualSeconds] = useState(0); // For logging timed sets
+  const [confirmEndId, setConfirmEndId] = useState(null); // Challenge ID pending end confirmation
+
+  // Ref to track last beeped second (to avoid duplicate beeps)
+  const lastBeepRef = useRef(-1);
 
   // Load challenges from backend and sync timers
   const loadChallenges = useCallback(async () => {
@@ -236,7 +278,10 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
 
   // Active timer effect (for timed challenges)
   useEffect(() => {
-    if (!activeTimer) return;
+    if (!activeTimer) {
+      lastBeepRef.current = -1; // Reset beep tracker when timer stops
+      return;
+    }
 
     const interval = setInterval(() => {
       const elapsed = Math.floor((Date.now() - activeTimer.startTime) / 1000);
@@ -244,10 +289,19 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
       if (activeTimer.phase === 'countdown') {
         const remaining = COUNTDOWN_SECONDS - elapsed;
         if (remaining <= 0) {
-          // Transition to running phase
+          // Transition to running phase - play start beep
+          if (lastBeepRef.current !== 0) {
+            playStartBeep();
+            lastBeepRef.current = 0;
+          }
           setActiveTimer(prev => ({ ...prev, phase: 'running', startTime: Date.now() }));
           setTimerDisplay(0);
         } else {
+          // Play countdown beep for each second (3, 2, 1)
+          if (remaining <= 3 && remaining !== lastBeepRef.current) {
+            playCountdownBeep();
+            lastBeepRef.current = remaining;
+          }
           setTimerDisplay(remaining);
         }
       } else {
@@ -475,7 +529,8 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
     });
     dayWorkouts.forEach(w => {
       if (!byUser[w.user_id]) byUser[w.user_id] = { user_name: w.user_name, user_id: w.user_id, items: [] };
-      const title = w.template_title || w.session_type || 'Träning';
+      // Use hiit_program_title for HIIT sessions, otherwise template_title or session_type
+      const title = w.hiit_program_title || w.template_title || w.session_type || 'Träning';
       byUser[w.user_id].items.push({ type: 'workout', title, duration_sec: w.duration_sec, session_type: w.session_type });
     });
 
@@ -534,7 +589,8 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
           const cd = countdowns[c.id] || {};
           const isTimedChallenge = c.is_timed === 1;
           return (
-            <div key={c.id} className={`daily-challenge-card full-width ${cd.ready ? 'ready' : ''} ${isTimedChallenge ? 'timed' : ''}`}>
+            <div key={c.id} className={`daily-challenge-card full-width expanded ${cd.ready ? 'ready' : ''} ${isTimedChallenge ? 'timed' : ''}`}>
+              {/* Header row */}
               <div className="challenge-card-header">
                 <div className="challenge-card-title">
                   <strong>{c.exercise}</strong>
@@ -545,47 +601,52 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
                     }
                   </span>
                 </div>
-                <button className="challenge-edit-btn" onClick={() => openModal(c.id, 'edit')} title="Redigera">✏️</button>
-              </div>
-              <div className="challenge-card-body">
-                {cd.ready ? (
-                  <div className="challenge-card-ready">
-                    <span className="ready-badge">NU!</span>
-                    {isTimedChallenge ? (
-                      <button className="log-quick timed" onClick={() => startTimedChallenge(c.id, c.target_seconds || 0)}>
-                        ▶ {c.target_seconds > 0 ? formatTimeStats(c.target_seconds) : 'Starta'}
-                      </button>
-                    ) : (
-                      <button className="log-quick" onClick={() => logSet(c.id, c.target_reps)}>✓ {c.target_reps}</button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="challenge-card-timer">
-                    {String(cd.minutes || 0).padStart(2, '0')}:{String(cd.seconds || 0).padStart(2, '0')}
-                  </div>
-                )}
-                <div className="challenge-card-stats">
+                <div className="challenge-card-stats-inline">
                   {isTimedChallenge ? (
-                    <span>{formatTimeStats(c.total_seconds || 0)} totalt</span>
+                    <span>{formatTimeStats(c.total_seconds || 0)}</span>
                   ) : (
                     <span>{c.total_reps || 0} reps</span>
                   )}
+                  <span className="stats-separator">·</span>
                   <span>{c.sets_count || 0} set</span>
                 </div>
               </div>
-              <div className="challenge-card-actions">
-                {isTimedChallenge ? (
+
+              {/* Main action area */}
+              <div className="challenge-card-main">
+                {cd.ready ? (
                   <>
-                    {!cd.ready && <button className="ghost small" onClick={() => startTimedChallenge(c.id, c.target_seconds || 0)}>Kör nu</button>}
-                    {cd.ready && <button className="ghost small" onClick={() => openModal(c.id, 'log')}>Manuell...</button>}
+                    {isTimedChallenge ? (
+                      <button className="log-button-large timed" onClick={() => startTimedChallenge(c.id, c.target_seconds || 0)}>
+                        <span className="log-button-icon">▶</span>
+                        <span className="log-button-text">Starta {c.target_seconds > 0 ? formatTimeStats(c.target_seconds) : ''}</span>
+                      </button>
+                    ) : (
+                      <button className="log-button-large" onClick={() => logSet(c.id, c.target_reps)}>
+                        <span className="log-button-icon">✓</span>
+                        <span className="log-button-text">{c.target_reps} reps</span>
+                      </button>
+                    )}
                   </>
                 ) : (
-                  <>
-                    {!cd.ready && <button className="ghost small" onClick={() => openModal(c.id, 'log')}>Logga</button>}
-                    {cd.ready && <button className="ghost small" onClick={() => openModal(c.id, 'log')}>Annat...</button>}
-                  </>
+                  <div className="challenge-countdown-display">
+                    <span className="countdown-label">Nästa om</span>
+                    <span className="countdown-time">
+                      {String(cd.minutes || 0).padStart(2, '0')}:{String(cd.seconds || 0).padStart(2, '0')}
+                    </span>
+                  </div>
                 )}
-                <button className="ghost small danger" onClick={() => endChallenge(c.id)}>Avsluta</button>
+              </div>
+
+              {/* Secondary actions */}
+              <div className="challenge-card-footer">
+                <button className="ghost small" onClick={() => openModal(c.id, 'edit')}>✏️ Redigera</button>
+                {isTimedChallenge ? (
+                  <button className="ghost small" onClick={() => openModal(c.id, 'log')}>Manuell logg</button>
+                ) : (
+                  <button className="ghost small" onClick={() => openModal(c.id, 'log')}>Annat antal</button>
+                )}
+                <button className="ghost small muted" onClick={() => setConfirmEndId(c.id)}>Avsluta</button>
               </div>
             </div>
           );
@@ -681,7 +742,7 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
                                 </>
                               ) : (
                                 <>
-                                  <span className="item-name">{item.session_type === 'hiit' ? 'HIIT:' : `${item.title}:`}</span>
+                                  <span className="item-name">{item.title}:</span>
                                   <span className="item-value">{formatDuration(item.duration_sec)}</span>
                                 </>
                               )}
@@ -796,6 +857,27 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* End challenge confirmation modal */}
+      {confirmEndId && (
+        <div className="challenge-modal-overlay" onClick={() => setConfirmEndId(null)}>
+          <div className="challenge-modal confirm-modal" onClick={(e) => e.stopPropagation()}>
+            <h4>Avsluta utmaning?</h4>
+            <p className="confirm-text">
+              Är du säker på att du vill avsluta <strong>{challenges.find(c => c.id === confirmEndId)?.exercise}</strong> för idag?
+            </p>
+            <p className="confirm-hint">
+              💡 Om du inte avslutar manuellt fortsätter utmaningen automatiskt till midnatt, sen startar den om imorgon.
+            </p>
+            <div className="modal-actions">
+              <button className="danger" onClick={() => { endChallenge(confirmEndId); setConfirmEndId(null); }}>
+                Ja, avsluta
+              </button>
+              <button className="ghost" onClick={() => setConfirmEndId(null)}>Avbryt</button>
+            </div>
           </div>
         </div>
       )}

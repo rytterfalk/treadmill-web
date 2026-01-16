@@ -119,6 +119,7 @@ router.get('/history', authRequired, (req, res) => {
       ws.notes,
       ws.started_at,
       ws.ended_at,
+      ws.hiit_program_title,
       wt.title as template_title,
       date(COALESCE(ws.started_at, ws.ended_at, ws.created_at), 'localtime') as date
     FROM workout_sessions ws

@@ -406,6 +406,7 @@ function App() {
         method: 'POST',
         body: JSON.stringify({
           programId: selectedProgramId,
+          programTitle: selectedProgram?.title || null,
           durationSeconds: elapsedSeconds,
           notes: payload.notes || '',
           details: {

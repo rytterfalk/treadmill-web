@@ -353,6 +353,7 @@ app.post('/api/sessions', authRequired, (req, res) => {
     details = null,
     sessionType = 'other',
     startedAt = null,
+    programTitle = null,
   } = req.body;
   const stmt = db.prepare(
     `INSERT INTO sessions (user_id, program_id, duration_seconds, notes, details)
@@ -380,9 +381,9 @@ app.post('/api/sessions', authRequired, (req, res) => {
   const workoutId = crypto.randomUUID();
   db.prepare(
     `INSERT INTO workout_sessions
-      (id, user_id, template_id, session_type, started_at, ended_at, duration_sec, notes, source, treadmill_state_json)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL)`
-  ).run(workoutId, req.user.id, null, type, startIso, endIso, durationSec, notes || '');
+      (id, user_id, template_id, session_type, started_at, ended_at, duration_sec, notes, source, treadmill_state_json, hiit_program_title)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL, ?)`
+  ).run(workoutId, req.user.id, null, type, startIso, endIso, durationSec, notes || '', programTitle || null);
 
   res.status(201).json({ sessionId: inserted.lastInsertRowid, workoutSessionId: workoutId });
 });
