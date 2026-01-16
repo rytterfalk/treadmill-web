@@ -2723,3 +2723,141 @@ button.tiny {
   color: var(--accent);
   opacity: 0.8;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   TIMED CHALLENGES - Full-width cards and timer overlay
+   ═══════════════════════════════════════════════════════════ */
+
+/* Full-width challenge cards */
+.daily-challenge-card.full-width {
+  flex: 1 1 100%;
+  max-width: 100%;
+  min-width: 100%;
+}
+
+.daily-challenge-card.timed {
+  border-color: #4caf50;
+  background: linear-gradient(135deg, rgba(76, 175, 80, 0.08) 0%, var(--bg-card) 100%);
+}
+
+.daily-challenge-card.timed.ready {
+  border-color: #4caf50;
+  background: linear-gradient(135deg, rgba(76, 175, 80, 0.15) 0%, var(--bg-card) 100%);
+}
+
+/* Timed quick button */
+.log-quick.timed {
+  background: #4caf50;
+}
+
+/* Type toggle in setup */
+.setup-type-toggle {
+  display: flex;
+  gap: 0;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.setup-type-toggle .type-btn {
+  flex: 1;
+  padding: 0.5rem 1rem;
+  background: var(--bg-elevated);
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.setup-type-toggle .type-btn.active {
+  background: var(--accent);
+  color: #000;
+}
+
+.setup-type-toggle .type-btn:not(.active):hover {
+  background: var(--bg-card);
+}
+
+/* Time select in setup */
+.challenge-setup-compact .time-select {
+  min-width: 80px;
+}
+
+/* Timed challenge overlay (fullscreen timer) */
+.timed-challenge-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 2rem;
+}
+
+.timed-challenge-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  text-align: center;
+}
+
+.timed-challenge-exercise {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.timed-challenge-label {
+  font-size: 1.2rem;
+  color: var(--text-secondary);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.timed-challenge-countdown {
+  font-size: 8rem;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.timed-challenge-time {
+  font-size: 6rem;
+  font-weight: 700;
+  color: #4caf50;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.timed-challenge-target {
+  font-size: 1.2rem;
+  color: var(--text-secondary);
+}
+
+.timed-challenge-stop {
+  padding: 1rem 3rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.15s;
+  background: #ff6b6b;
+  color: #fff;
+}
+
+.timed-challenge-stop:hover {
+  filter: brightness(1.1);
+}
+
+.timed-challenge-stop.cancel {
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+}

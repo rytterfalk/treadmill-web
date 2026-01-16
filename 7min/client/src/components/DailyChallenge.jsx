@@ -9,8 +9,19 @@ const INTERVAL_OPTIONS = [
   { value: 120, label: '2 tim' },
 ];
 
+// Presets for timed challenges (in seconds)
+const TIMED_PRESETS = [
+  { value: 30, label: '30 sek' },
+  { value: 60, label: '1 min' },
+  { value: 90, label: '1:30' },
+  { value: 120, label: '2 min' },
+  { value: 150, label: '2:30' },
+  { value: 0, label: 'Kör bara kör!' }, // 0 = unlimited/stopwatch mode
+];
+
 const MAX_CHALLENGES = 3;
 const TIMER_STORAGE_KEY = '7min_challenge_timers'; // Local timers only
+const COUNTDOWN_SECONDS = 5; // Countdown before timed challenge starts
 
 async function api(path, options = {}) {
   const res = await fetch(path, {
@@ -57,6 +68,24 @@ function formatDuration(sec) {
   return `${m} min`;
 }
 
+// Format seconds as mm:ss or just seconds for short durations
+function formatTime(totalSeconds) {
+  if (totalSeconds === null || totalSeconds === undefined) return '0:00';
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
+  return `${mins}:${String(secs).padStart(2, '0')}`;
+}
+
+// Format total seconds for display in stats (e.g., "2:30" or "45 sek")
+function formatTimeStats(totalSeconds) {
+  if (!totalSeconds) return '0 sek';
+  if (totalSeconds < 60) return `${totalSeconds} sek`;
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
+  if (secs === 0) return `${mins} min`;
+  return `${mins}:${String(secs).padStart(2, '0')}`;
+}
+
 function DailyChallenge({ onSaveDay, currentUserId }) {
   const [challenges, setChallenges] = useState([]);
   const [leaderboard, setLeaderboard] = useState([]);
@@ -78,6 +107,13 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
   const [modalSets, setModalSets] = useState([]);
   const [loadingSets, setLoadingSets] = useState(false);
   const [lastActivityCheck, setLastActivityCheck] = useState(() => new Date().toISOString());
+
+  // New state for timed challenges
+  const [isTimed, setIsTimed] = useState(false); // Toggle for reps vs time
+  const [targetSeconds, setTargetSeconds] = useState(60); // Target time for timed challenges
+  const [activeTimer, setActiveTimer] = useState(null); // { challengeId, phase: 'countdown'|'running', startTime, targetSeconds }
+  const [timerDisplay, setTimerDisplay] = useState(0); // Current timer value in seconds
+  const [actualSeconds, setActualSeconds] = useState(0); // For logging timed sets
 
   // Load challenges from backend and sync timers
   const loadChallenges = useCallback(async () => {
@@ -198,33 +234,112 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
     return () => clearInterval(interval);
   }, [challenges, timers]);
 
+  // Active timer effect (for timed challenges)
+  useEffect(() => {
+    if (!activeTimer) return;
+
+    const interval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - activeTimer.startTime) / 1000);
+
+      if (activeTimer.phase === 'countdown') {
+        const remaining = COUNTDOWN_SECONDS - elapsed;
+        if (remaining <= 0) {
+          // Transition to running phase
+          setActiveTimer(prev => ({ ...prev, phase: 'running', startTime: Date.now() }));
+          setTimerDisplay(0);
+        } else {
+          setTimerDisplay(remaining);
+        }
+      } else {
+        // Running phase
+        if (activeTimer.targetSeconds > 0 && elapsed >= activeTimer.targetSeconds) {
+          // Time's up! Auto-complete
+          completeTimedSet(activeTimer.challengeId, activeTimer.targetSeconds);
+        } else {
+          setTimerDisplay(elapsed);
+        }
+      }
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [activeTimer]);
+
   async function addChallenge() {
     if (challenges.length >= MAX_CHALLENGES || !exercise.trim()) return;
     try {
       const { challenge } = await api('/api/challenges', {
         method: 'POST',
-        body: JSON.stringify({ exercise, targetReps, intervalMinutes }),
+        body: JSON.stringify({
+          exercise,
+          targetReps: isTimed ? 0 : targetReps,
+          intervalMinutes,
+          isTimed,
+          targetSeconds: isTimed ? targetSeconds : null
+        }),
       });
       setChallenges([...challenges, challenge]);
       setTimers({ ...timers, [challenge.id]: Date.now() }); // First set is now
       setShowSetup(false);
       setExercise('');
+      setIsTimed(false);
       loadLeaderboard();
     } catch (err) {
       alert(err.message);
     }
   }
 
-  async function logSet(challengeId, reps) {
+  // Start timed challenge (5 sec countdown then main timer)
+  function startTimedChallenge(challengeId, targetSec) {
+    setActiveTimer({
+      challengeId,
+      phase: 'countdown',
+      startTime: Date.now(),
+      targetSeconds: targetSec
+    });
+    setTimerDisplay(COUNTDOWN_SECONDS);
+  }
+
+  // Stop timer and log the time
+  async function stopTimedChallenge() {
+    if (!activeTimer || activeTimer.phase !== 'running') {
+      setActiveTimer(null);
+      return;
+    }
+    const elapsed = Math.floor((Date.now() - activeTimer.startTime) / 1000);
+    await completeTimedSet(activeTimer.challengeId, elapsed);
+  }
+
+  // Complete a timed set
+  async function completeTimedSet(challengeId, seconds) {
     const c = challenges.find(ch => ch.id === challengeId);
     if (!c) return;
     try {
       const result = await api(`/api/challenges/${challengeId}/sets`, {
         method: 'POST',
-        body: JSON.stringify({ reps }),
+        body: JSON.stringify({ seconds }),
       });
       setChallenges(challenges.map(ch =>
-        ch.id === challengeId ? { ...ch, sets_count: result.sets_count, total_reps: result.total_reps } : ch
+        ch.id === challengeId ? { ...ch, sets_count: result.sets_count, total_seconds: result.total_seconds } : ch
+      ));
+      setTimers({ ...timers, [challengeId]: getNextAlignedTime(c.interval_minutes, Date.now()) });
+      setActiveTimer(null);
+      loadLeaderboard();
+      loadHistory();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function logSet(challengeId, reps, seconds = null) {
+    const c = challenges.find(ch => ch.id === challengeId);
+    if (!c) return;
+    try {
+      const result = await api(`/api/challenges/${challengeId}/sets`, {
+        method: 'POST',
+        body: JSON.stringify({ reps, seconds }),
+      });
+      setChallenges(challenges.map(ch =>
+        ch.id === challengeId ? { ...ch, sets_count: result.sets_count, total_reps: result.total_reps, total_seconds: result.total_seconds } : ch
       ));
       setTimers({ ...timers, [challengeId]: getNextAlignedTime(c.interval_minutes, Date.now()) });
       closeModal();
@@ -235,14 +350,19 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
     }
   }
 
-  async function addBulkSets(challengeId, numSets, repsPerSet) {
+  async function addBulkSets(challengeId, numSets, repsOrSeconds) {
+    const c = challenges.find(ch => ch.id === challengeId);
     const n = parseInt(numSets, 10) || 0;
     if (n <= 0) return;
     try {
       for (let i = 0; i < n; i++) {
         await api(`/api/challenges/${challengeId}/sets`, {
           method: 'POST',
-          body: JSON.stringify({ reps: repsPerSet, retroactive: true }),
+          body: JSON.stringify({
+            reps: c?.is_timed ? 0 : repsOrSeconds,
+            seconds: c?.is_timed ? repsOrSeconds : null,
+            retroactive: true
+          }),
         });
       }
       loadChallenges();
@@ -300,6 +420,7 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
     setModalChallengeId(challengeId);
     setModalType(type);
     setActualReps(c?.target_reps || 0);
+    setActualSeconds(c?.target_seconds || 60);
     setBulkSets('1');
     setModalSets([]);
     if (type === 'edit') {
@@ -311,6 +432,7 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
     setModalChallengeId(null);
     setModalType(null);
     setActualReps(0);
+    setActualSeconds(0);
     setBulkSets('1');
     setModalSets([]);
   }
@@ -342,7 +464,14 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
     const byUser = {};
     dayChallenges.forEach(c => {
       if (!byUser[c.user_id]) byUser[c.user_id] = { user_name: c.user_name, user_id: c.user_id, items: [] };
-      byUser[c.user_id].items.push({ type: 'challenge', exercise: c.exercise, total_reps: c.total_reps, sets_count: c.sets_count });
+      byUser[c.user_id].items.push({
+        type: 'challenge',
+        exercise: c.exercise,
+        total_reps: c.total_reps,
+        total_seconds: c.total_seconds,
+        sets_count: c.sets_count,
+        is_timed: c.is_timed
+      });
     });
     dayWorkouts.forEach(w => {
       if (!byUser[w.user_id]) byUser[w.user_id] = { user_name: w.user_name, user_id: w.user_id, items: [] };
@@ -367,24 +496,68 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
         </div>
       )}
 
+      {/* Full-screen timer overlay */}
+      {activeTimer && (
+        <div className="timed-challenge-overlay">
+          <div className="timed-challenge-content">
+            <div className="timed-challenge-exercise">
+              {challenges.find(ch => ch.id === activeTimer.challengeId)?.exercise}
+            </div>
+            {activeTimer.phase === 'countdown' ? (
+              <>
+                <div className="timed-challenge-label">Gör dig redo!</div>
+                <div className="timed-challenge-countdown">{timerDisplay}</div>
+              </>
+            ) : (
+              <>
+                <div className="timed-challenge-time">{formatTime(timerDisplay)}</div>
+                {activeTimer.targetSeconds > 0 && (
+                  <div className="timed-challenge-target">
+                    Mål: {formatTime(activeTimer.targetSeconds)}
+                  </div>
+                )}
+              </>
+            )}
+            <button
+              className={`timed-challenge-stop ${activeTimer.phase === 'countdown' ? 'cancel' : ''}`}
+              onClick={stopTimedChallenge}
+            >
+              {activeTimer.phase === 'countdown' ? 'Avbryt' : 'Stopp'}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="daily-challenges-container">
         {/* Active challenges */}
         {challenges.map((c) => {
           const cd = countdowns[c.id] || {};
+          const isTimedChallenge = c.is_timed === 1;
           return (
-            <div key={c.id} className={`daily-challenge-card ${cd.ready ? 'ready' : ''}`}>
+            <div key={c.id} className={`daily-challenge-card full-width ${cd.ready ? 'ready' : ''} ${isTimedChallenge ? 'timed' : ''}`}>
               <div className="challenge-card-header">
                 <div className="challenge-card-title">
                   <strong>{c.exercise}</strong>
-                  <span className="challenge-card-meta">{c.target_reps}×{c.interval_minutes}min</span>
+                  <span className="challenge-card-meta">
+                    {isTimedChallenge
+                      ? `${formatTimeStats(c.target_seconds)} × var ${c.interval_minutes} min`
+                      : `${c.target_reps} × var ${c.interval_minutes} min`
+                    }
+                  </span>
                 </div>
-                <button className="challenge-edit-btn" onClick={() => openModal(c.id, 'edit')} title="Lägg till set">✏️</button>
+                <button className="challenge-edit-btn" onClick={() => openModal(c.id, 'edit')} title="Redigera">✏️</button>
               </div>
               <div className="challenge-card-body">
                 {cd.ready ? (
                   <div className="challenge-card-ready">
                     <span className="ready-badge">NU!</span>
-                    <button className="log-quick" onClick={() => logSet(c.id, c.target_reps)}>✓ {c.target_reps}</button>
+                    {isTimedChallenge ? (
+                      <button className="log-quick timed" onClick={() => startTimedChallenge(c.id, c.target_seconds || 0)}>
+                        ▶ {c.target_seconds > 0 ? formatTimeStats(c.target_seconds) : 'Starta'}
+                      </button>
+                    ) : (
+                      <button className="log-quick" onClick={() => logSet(c.id, c.target_reps)}>✓ {c.target_reps}</button>
+                    )}
                   </div>
                 ) : (
                   <div className="challenge-card-timer">
@@ -392,13 +565,26 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
                   </div>
                 )}
                 <div className="challenge-card-stats">
-                  <span>{c.total_reps || 0} reps</span>
+                  {isTimedChallenge ? (
+                    <span>{formatTimeStats(c.total_seconds || 0)} totalt</span>
+                  ) : (
+                    <span>{c.total_reps || 0} reps</span>
+                  )}
                   <span>{c.sets_count || 0} set</span>
                 </div>
               </div>
               <div className="challenge-card-actions">
-                {!cd.ready && <button className="ghost small" onClick={() => openModal(c.id, 'log')}>Logga</button>}
-                {cd.ready && <button className="ghost small" onClick={() => openModal(c.id, 'log')}>Annat...</button>}
+                {isTimedChallenge ? (
+                  <>
+                    {!cd.ready && <button className="ghost small" onClick={() => startTimedChallenge(c.id, c.target_seconds || 0)}>Kör nu</button>}
+                    {cd.ready && <button className="ghost small" onClick={() => openModal(c.id, 'log')}>Manuell...</button>}
+                  </>
+                ) : (
+                  <>
+                    {!cd.ready && <button className="ghost small" onClick={() => openModal(c.id, 'log')}>Logga</button>}
+                    {cd.ready && <button className="ghost small" onClick={() => openModal(c.id, 'log')}>Annat...</button>}
+                  </>
+                )}
                 <button className="ghost small danger" onClick={() => endChallenge(c.id)}>Avsluta</button>
               </div>
             </div>
@@ -407,19 +593,47 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
 
         {/* Add new challenge */}
         {showSetup ? (
-          <div className="daily-challenge-card setup">
+          <div className="daily-challenge-card setup full-width">
             <div className="challenge-setup-compact">
-              <input value={exercise} onChange={(e) => setExercise(e.target.value)} placeholder="Övning (t.ex. Armhävningar)" autoFocus />
+              <input value={exercise} onChange={(e) => setExercise(e.target.value)} placeholder="Övning (t.ex. Armhävningar, Planka)" autoFocus />
+
+              {/* Type toggle */}
+              <div className="setup-type-toggle">
+                <button
+                  className={`type-btn ${!isTimed ? 'active' : ''}`}
+                  onClick={() => setIsTimed(false)}
+                >
+                  Reps
+                </button>
+                <button
+                  className={`type-btn ${isTimed ? 'active' : ''}`}
+                  onClick={() => setIsTimed(true)}
+                >
+                  Tid
+                </button>
+              </div>
+
               <div className="setup-row">
-                <input type="number" value={targetReps} onChange={(e) => setTargetReps(Number(e.target.value))} min={1} className="reps-input" />
-                <span>reps var</span>
+                {isTimed ? (
+                  <>
+                    <select value={targetSeconds} onChange={(e) => setTargetSeconds(Number(e.target.value))} className="time-select">
+                      {TIMED_PRESETS.map((opt) => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
+                    </select>
+                    <span>var</span>
+                  </>
+                ) : (
+                  <>
+                    <input type="number" value={targetReps} onChange={(e) => setTargetReps(Number(e.target.value))} min={1} className="reps-input" />
+                    <span>reps var</span>
+                  </>
+                )}
                 <select value={intervalMinutes} onChange={(e) => setIntervalMinutes(Number(e.target.value))}>
                   {INTERVAL_OPTIONS.map((opt) => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
                 </select>
               </div>
               <div className="setup-actions">
                 <button onClick={addChallenge} disabled={!exercise.trim()}>Starta</button>
-                <button className="ghost" onClick={() => setShowSetup(false)}>×</button>
+                <button className="ghost" onClick={() => { setShowSetup(false); setIsTimed(false); }}>×</button>
               </div>
             </div>
           </div>
@@ -452,13 +666,18 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
                         <span className="history-user-name">{user.user_name}</span>
                         <div className="history-user-items">
                           {user.items
-                            .filter(item => item.type !== 'challenge' || item.total_reps > 0)
+                            .filter(item => item.type !== 'challenge' || item.total_reps > 0 || item.total_seconds > 0)
                             .map((item, idx) => (
                             <div key={idx} className={`history-item ${item.type}`}>
                               {item.type === 'challenge' ? (
                                 <>
                                   <span className="item-name">{item.exercise}:</span>
-                                  <span className="item-value">{item.total_reps} reps ({item.sets_count} set)</span>
+                                  <span className="item-value">
+                                    {item.is_timed
+                                      ? `${formatTimeStats(item.total_seconds)} (${item.sets_count} set)`
+                                      : `${item.total_reps} reps (${item.sets_count} set)`
+                                    }
+                                  </span>
                                 </>
                               ) : (
                                 <>
@@ -499,13 +718,27 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
             <h4>{modalChallenge.exercise}</h4>
             {modalType === 'log' && (
               <>
-                <label className="setup-field"><span>Antal reps</span>
-                  <input type="number" value={actualReps} onChange={(e) => setActualReps(Number(e.target.value))} min={0} autoFocus />
-                </label>
-                <div className="modal-actions">
-                  <button onClick={() => logSet(modalChallengeId, actualReps)}>Spara</button>
-                  <button className="ghost" onClick={closeModal}>Avbryt</button>
-                </div>
+                {modalChallenge.is_timed === 1 ? (
+                  <>
+                    <label className="setup-field"><span>Tid (sekunder)</span>
+                      <input type="number" value={actualSeconds} onChange={(e) => setActualSeconds(Number(e.target.value))} min={0} autoFocus />
+                    </label>
+                    <div className="modal-actions">
+                      <button onClick={() => logSet(modalChallengeId, 0, actualSeconds)}>Spara</button>
+                      <button className="ghost" onClick={closeModal}>Avbryt</button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <label className="setup-field"><span>Antal reps</span>
+                      <input type="number" value={actualReps} onChange={(e) => setActualReps(Number(e.target.value))} min={0} autoFocus />
+                    </label>
+                    <div className="modal-actions">
+                      <button onClick={() => logSet(modalChallengeId, actualReps)}>Spara</button>
+                      <button className="ghost" onClick={closeModal}>Avbryt</button>
+                    </div>
+                  </>
+                )}
               </>
             )}
             {modalType === 'edit' && (
@@ -525,7 +758,12 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
                           <div key={s.id} className="set-row">
                             <span className="set-num">#{idx + 1}</span>
                             <span className="set-time">{time}</span>
-                            <span className="set-reps">{s.reps} reps</span>
+                            <span className="set-reps">
+                              {modalChallenge.is_timed === 1
+                                ? formatTimeStats(s.seconds || 0)
+                                : `${s.reps} reps`
+                              }
+                            </span>
                             <button className="set-delete" onClick={() => deleteSet(modalChallengeId, s.id)} title="Ta bort">×</button>
                           </div>
                         );
@@ -541,11 +779,19 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
                 <label className="setup-field"><span>Antal set</span>
                   <input type="text" inputMode="numeric" pattern="[0-9]*" value={bulkSets} onChange={(e) => setBulkSets(e.target.value)} autoFocus />
                 </label>
-                <label className="setup-field"><span>Reps per set</span>
-                  <input type="number" value={actualReps} onChange={(e) => setActualReps(Number(e.target.value))} min={0} />
-                </label>
+                {modalChallenge.is_timed === 1 ? (
+                  <label className="setup-field"><span>Sekunder per set</span>
+                    <input type="number" value={actualSeconds} onChange={(e) => setActualSeconds(Number(e.target.value))} min={0} />
+                  </label>
+                ) : (
+                  <label className="setup-field"><span>Reps per set</span>
+                    <input type="number" value={actualReps} onChange={(e) => setActualReps(Number(e.target.value))} min={0} />
+                  </label>
+                )}
                 <div className="modal-actions">
-                  <button onClick={() => addBulkSets(modalChallengeId, bulkSets, actualReps)}>Lägg till {parseInt(bulkSets, 10) || 0} set</button>
+                  <button onClick={() => addBulkSets(modalChallengeId, bulkSets, modalChallenge.is_timed === 1 ? actualSeconds : actualReps)}>
+                    Lägg till {parseInt(bulkSets, 10) || 0} set
+                  </button>
                   <button className="ghost" onClick={closeModal}>Stäng</button>
                 </div>
               </>

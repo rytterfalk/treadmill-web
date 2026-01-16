@@ -30,8 +30,8 @@ function autoContinueChallenges(userId) {
 
   const endStmt = db.prepare(`UPDATE daily_challenges SET ended_at = datetime('now') WHERE id = ?`);
   const createStmt = db.prepare(`
-    INSERT INTO daily_challenges (user_id, date, exercise, target_reps, interval_minutes)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO daily_challenges (user_id, date, exercise, target_reps, interval_minutes, is_timed, target_seconds)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
 
   // Use a transaction for atomicity
@@ -40,8 +40,8 @@ function autoContinueChallenges(userId) {
       // End the old challenge (preserving its sets for history)
       endStmt.run(old.id);
 
-      // Create a new one for today with the same settings (starts at 0 reps)
-      createStmt.run(userId, today, old.exercise, old.target_reps, old.interval_minutes);
+      // Create a new one for today with the same settings (starts at 0 reps/seconds)
+      createStmt.run(userId, today, old.exercise, old.target_reps, old.interval_minutes, old.is_timed, old.target_seconds);
     }
   });
 
@@ -59,6 +59,7 @@ router.get('/my', authRequired, (req, res) => {
     SELECT dc.*,
            (SELECT COUNT(*) FROM daily_challenge_sets WHERE challenge_id = dc.id) as sets_count,
            (SELECT COALESCE(SUM(reps), 0) FROM daily_challenge_sets WHERE challenge_id = dc.id) as total_reps,
+           (SELECT COALESCE(SUM(seconds), 0) FROM daily_challenge_sets WHERE challenge_id = dc.id) as total_seconds,
            (SELECT MAX(logged_at) FROM daily_challenge_sets WHERE challenge_id = dc.id) as last_set_at
     FROM daily_challenges dc
     WHERE dc.user_id = ? AND dc.date = ? AND dc.ended_at IS NULL
@@ -95,12 +96,15 @@ router.get('/history', authRequired, (req, res) => {
       dc.exercise,
       dc.target_reps,
       dc.interval_minutes,
+      dc.is_timed,
+      dc.target_seconds,
       (SELECT COUNT(*) FROM daily_challenge_sets WHERE challenge_id = dc.id) as sets_count,
-      (SELECT COALESCE(SUM(reps), 0) FROM daily_challenge_sets WHERE challenge_id = dc.id) as total_reps
+      (SELECT COALESCE(SUM(reps), 0) FROM daily_challenge_sets WHERE challenge_id = dc.id) as total_reps,
+      (SELECT COALESCE(SUM(seconds), 0) FROM daily_challenge_sets WHERE challenge_id = dc.id) as total_seconds
     FROM daily_challenges dc
     JOIN users u ON u.id = dc.user_id
     WHERE dc.date >= ? AND dc.date <= ?
-    ORDER BY dc.date DESC, total_reps DESC
+    ORDER BY dc.date DESC, total_reps DESC, total_seconds DESC
   `).all(from, to);
 
   // Get all workout sessions for the date range (HIIT, strength, etc)
@@ -139,15 +143,18 @@ router.get('/leaderboard', authRequired, (req, res) => {
       dc.exercise,
       dc.target_reps,
       dc.interval_minutes,
+      dc.is_timed,
+      dc.target_seconds,
       dc.started_at,
       dc.ended_at,
       (SELECT COUNT(*) FROM daily_challenge_sets WHERE challenge_id = dc.id) as sets_count,
       (SELECT COALESCE(SUM(reps), 0) FROM daily_challenge_sets WHERE challenge_id = dc.id) as total_reps,
+      (SELECT COALESCE(SUM(seconds), 0) FROM daily_challenge_sets WHERE challenge_id = dc.id) as total_seconds,
       (SELECT MAX(logged_at) FROM daily_challenge_sets WHERE challenge_id = dc.id) as last_set_at
     FROM daily_challenges dc
     JOIN users u ON u.id = dc.user_id
     WHERE dc.date = ?
-    ORDER BY total_reps DESC, sets_count DESC
+    ORDER BY total_reps DESC, total_seconds DESC, sets_count DESC
   `).all(today);
 
   res.json({ leaderboard, date: today });
@@ -186,29 +193,29 @@ router.get('/activity', authRequired, (req, res) => {
 
 // Create a new challenge
 router.post('/', authRequired, (req, res) => {
-  const { exercise, targetReps = 10, intervalMinutes = 30 } = req.body;
+  const { exercise, targetReps = 10, intervalMinutes = 30, isTimed = false, targetSeconds = null } = req.body;
   if (!exercise) {
     return res.status(400).json({ error: 'Övning krävs' });
   }
 
   const today = getLocalDateString();
-  
+
   // Check max 3 active challenges per day
   const activeCount = db.prepare(`
-    SELECT COUNT(*) as count FROM daily_challenges 
+    SELECT COUNT(*) as count FROM daily_challenges
     WHERE user_id = ? AND date = ? AND ended_at IS NULL
   `).get(req.user.id, today).count;
-  
+
   if (activeCount >= 3) {
     return res.status(400).json({ error: 'Max 3 aktiva utmaningar per dag' });
   }
-  
+
   const stmt = db.prepare(`
-    INSERT INTO daily_challenges (user_id, date, exercise, target_reps, interval_minutes)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO daily_challenges (user_id, date, exercise, target_reps, interval_minutes, is_timed, target_seconds)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
-  const result = stmt.run(req.user.id, today, exercise, targetReps, intervalMinutes);
-  
+  const result = stmt.run(req.user.id, today, exercise, isTimed ? 0 : targetReps, intervalMinutes, isTimed ? 1 : 0, isTimed ? targetSeconds : null);
+
   const challenge = db.prepare('SELECT * FROM daily_challenges WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json({ challenge });
 });
@@ -216,37 +223,38 @@ router.post('/', authRequired, (req, res) => {
 // Log a set
 router.post('/:id/sets', authRequired, (req, res) => {
   const { id } = req.params;
-  const { reps, retroactive = false } = req.body;
-  
+  const { reps, seconds, retroactive = false } = req.body;
+
   // Verify ownership
   const challenge = db.prepare(`
     SELECT * FROM daily_challenges WHERE id = ? AND user_id = ?
   `).get(id, req.user.id);
-  
+
   if (!challenge) {
     return res.status(404).json({ error: 'Utmaning finns inte' });
   }
-  
+
   if (challenge.ended_at) {
     return res.status(400).json({ error: 'Utmaningen är avslutad' });
   }
-  
+
   const stmt = db.prepare(`
-    INSERT INTO daily_challenge_sets (challenge_id, reps, retroactive)
-    VALUES (?, ?, ?)
+    INSERT INTO daily_challenge_sets (challenge_id, reps, seconds, retroactive)
+    VALUES (?, ?, ?, ?)
   `);
-  stmt.run(id, reps, retroactive ? 1 : 0);
-  
+  stmt.run(id, challenge.is_timed ? 0 : (reps || 0), challenge.is_timed ? (seconds || 0) : null, retroactive ? 1 : 0);
+
   // Return updated stats
   const stats = db.prepare(`
-    SELECT COUNT(*) as sets_count, COALESCE(SUM(reps), 0) as total_reps
+    SELECT COUNT(*) as sets_count, COALESCE(SUM(reps), 0) as total_reps, COALESCE(SUM(seconds), 0) as total_seconds
     FROM daily_challenge_sets WHERE challenge_id = ?
   `).get(id);
-  
-  res.json({ 
-    challenge_id: Number(id), 
-    sets_count: stats.sets_count, 
-    total_reps: stats.total_reps 
+
+  res.json({
+    challenge_id: Number(id),
+    sets_count: stats.sets_count,
+    total_reps: stats.total_reps,
+    total_seconds: stats.total_seconds
   });
 });
 
@@ -264,13 +272,13 @@ router.get('/:id/sets', authRequired, (req, res) => {
   }
 
   const sets = db.prepare(`
-    SELECT id, reps, retroactive, logged_at
+    SELECT id, reps, seconds, retroactive, logged_at
     FROM daily_challenge_sets
     WHERE challenge_id = ?
     ORDER BY logged_at ASC
   `).all(id);
 
-  res.json({ sets });
+  res.json({ sets, is_timed: challenge.is_timed });
 });
 
 // Delete a specific set
@@ -299,14 +307,15 @@ router.post('/:id/sets/:setId/delete', authRequired, (req, res) => {
 
   // Return updated stats
   const stats = db.prepare(`
-    SELECT COUNT(*) as sets_count, COALESCE(SUM(reps), 0) as total_reps
+    SELECT COUNT(*) as sets_count, COALESCE(SUM(reps), 0) as total_reps, COALESCE(SUM(seconds), 0) as total_seconds
     FROM daily_challenge_sets WHERE challenge_id = ?
   `).get(id);
 
   res.json({
     deleted: true,
     sets_count: stats.sets_count,
-    total_reps: stats.total_reps
+    total_reps: stats.total_reps,
+    total_seconds: stats.total_seconds
   });
 });
 
@@ -326,7 +335,7 @@ router.post('/:id/end', authRequired, (req, res) => {
 
   const updated = db.prepare('SELECT * FROM daily_challenges WHERE id = ?').get(id);
   const stats = db.prepare(`
-    SELECT COUNT(*) as sets_count, COALESCE(SUM(reps), 0) as total_reps
+    SELECT COUNT(*) as sets_count, COALESCE(SUM(reps), 0) as total_reps, COALESCE(SUM(seconds), 0) as total_seconds
     FROM daily_challenge_sets WHERE challenge_id = ?
   `).get(id);
 
