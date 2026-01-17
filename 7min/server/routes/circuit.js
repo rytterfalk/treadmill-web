@@ -162,20 +162,45 @@ router.post('/sessions', authRequired, (req, res) => {
     return res.status(400).json({ error: 'Titel och antal varv krävs' });
   }
 
-  const sessionId = db
-    .prepare(
-      `INSERT INTO circuit_sessions (user_id, circuit_program_id, title, rounds_completed, total_seconds, exercise_times)
-       VALUES (?, ?, ?, ?, ?, ?)`
-    )
-    .run(
-      req.user.id,
-      circuitProgramId || null,
-      title,
-      roundsCompleted,
-      totalSeconds || 0,
-      JSON.stringify(exerciseTimes)
-    ).lastInsertRowid;
+  const now = new Date().toISOString();
+  const startedAt = new Date(Date.now() - (totalSeconds || 0) * 1000).toISOString();
 
+  // Use transaction to create both circuit_session and workout_session
+  const tx = db.transaction(() => {
+    // Create circuit session
+    const circuitSessionId = db
+      .prepare(
+        `INSERT INTO circuit_sessions (user_id, circuit_program_id, title, rounds_completed, total_seconds, exercise_times)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        req.user.id,
+        circuitProgramId || null,
+        title,
+        roundsCompleted,
+        totalSeconds || 0,
+        JSON.stringify(exerciseTimes)
+      ).lastInsertRowid;
+
+    // Create workout session for unified tracking
+    const workoutSessionId = `circuit_${circuitSessionId}_${Date.now()}`;
+    db.prepare(
+      `INSERT INTO workout_sessions (id, user_id, session_type, started_at, ended_at, duration_sec, notes, source, hiit_program_title)
+       VALUES (?, ?, 'circuit', ?, ?, ?, ?, 'manual', ?)`
+    ).run(
+      workoutSessionId,
+      req.user.id,
+      startedAt,
+      now,
+      totalSeconds || 0,
+      `${roundsCompleted} varv`,
+      title
+    );
+
+    return circuitSessionId;
+  });
+
+  const sessionId = tx();
   const session = db.prepare('SELECT * FROM circuit_sessions WHERE id = ?').get(sessionId);
   res.json({ session });
 });
@@ -199,6 +224,49 @@ router.get('/sessions', authRequired, (req, res) => {
       exercise_times: JSON.parse(s.exercise_times || '[]'),
     })),
   });
+});
+
+// Get all circuit favorites (shared across users)
+router.get('/favorites', authRequired, (req, res) => {
+  const favorites = db
+    .prepare(
+      `SELECT cf.circuit_program_id, cf.user_id, cf.created_at, u.name AS user_name
+       FROM circuit_favorites cf
+       JOIN users u ON u.id = cf.user_id
+       ORDER BY cf.created_at DESC`
+    )
+    .all();
+  res.json({ favorites });
+});
+
+// Add a circuit favorite
+router.post('/favorites/:circuitProgramId', authRequired, (req, res) => {
+  const circuitProgramId = Number(req.params.circuitProgramId);
+  const program = db.prepare('SELECT id FROM circuit_programs WHERE id = ?').get(circuitProgramId);
+  if (!program) return res.status(404).json({ error: 'Circuit-passet finns inte' });
+
+  try {
+    db.prepare('INSERT INTO circuit_favorites (user_id, circuit_program_id) VALUES (?, ?)').run(
+      req.user.id,
+      circuitProgramId
+    );
+  } catch (err) {
+    if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.json({ ok: true, alreadyExists: true });
+    }
+    throw err;
+  }
+  res.json({ ok: true });
+});
+
+// Remove a circuit favorite
+router.delete('/favorites/:circuitProgramId', authRequired, (req, res) => {
+  const circuitProgramId = Number(req.params.circuitProgramId);
+  db.prepare('DELETE FROM circuit_favorites WHERE user_id = ? AND circuit_program_id = ?').run(
+    req.user.id,
+    circuitProgramId
+  );
+  res.json({ ok: true });
 });
 
 module.exports = { router };

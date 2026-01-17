@@ -124,6 +124,7 @@ function App() {
   const [selectedCircuitId, setSelectedCircuitId] = useState(null);
   const [circuitCollapsed, setCircuitCollapsed] = useState(true);
   const [showCircuitPicker, setShowCircuitPicker] = useState(false);
+  const [circuitFavorites, setCircuitFavorites] = useState([]); // Array of { circuit_program_id, user_id, user_name }
 
   // Helper to format duration
   function formatDuration(seconds) {
@@ -199,6 +200,56 @@ function App() {
     return programs.filter((p) => favProgramIds.includes(p.id));
   }, [programs, favorites]);
 
+  // Circuit favorites functions
+  async function loadCircuitFavorites() {
+    try {
+      const data = await api('/api/circuit/favorites');
+      setCircuitFavorites(data.favorites || []);
+    } catch {
+      setCircuitFavorites([]);
+    }
+  }
+
+  async function toggleCircuitFavorite(circuitProgramId) {
+    if (!user) return;
+    const existing = circuitFavorites.find((f) => f.circuit_program_id === circuitProgramId && f.user_id === user.id);
+    try {
+      if (existing) {
+        await api(`/api/circuit/favorites/${circuitProgramId}`, { method: 'DELETE' });
+        setCircuitFavorites((prev) => prev.filter((f) => !(f.circuit_program_id === circuitProgramId && f.user_id === user.id)));
+      } else {
+        await api(`/api/circuit/favorites/${circuitProgramId}`, { method: 'POST' });
+        setCircuitFavorites((prev) => [...prev, { circuit_program_id: circuitProgramId, user_id: user.id, user_name: user.name }]);
+      }
+    } catch (err) {
+      setStatus(err.message);
+    }
+  }
+
+  function isCircuitFavorited(circuitProgramId) {
+    return circuitFavorites.some((f) => f.circuit_program_id === circuitProgramId);
+  }
+
+  function isMyCircuitFavorite(circuitProgramId) {
+    return user && circuitFavorites.some((f) => f.circuit_program_id === circuitProgramId && f.user_id === user.id);
+  }
+
+  function getCircuitFavoriteUsers(circuitProgramId) {
+    return circuitFavorites
+      .filter((f) => f.circuit_program_id === circuitProgramId)
+      .map((f) => f.user_name);
+  }
+
+  const sortedCircuitPrograms = useMemo(() => {
+    return [...circuitPrograms].sort((a, b) => {
+      const aFav = isCircuitFavorited(a.id);
+      const bFav = isCircuitFavorited(b.id);
+      if (aFav && !bFav) return -1;
+      if (!aFav && bFav) return 1;
+      return 0;
+    });
+  }, [circuitPrograms, circuitFavorites]);
+
   useEffect(() => {
     loadEquipment();
     loadPrograms();
@@ -210,6 +261,7 @@ function App() {
     if (user) {
       loadSessions();
       loadFavorites();
+      loadCircuitFavorites();
       // Load user-specific selected program
       try {
         const savedProgramId = localStorage.getItem(getUserKey('selectedProgram'));
@@ -227,6 +279,7 @@ function App() {
       } catch {}
     } else {
       setFavorites([]);
+      setCircuitFavorites([]);
     }
   }, [user]);
 
@@ -539,6 +592,12 @@ function App() {
         [data.program.id]: { program: data.program, exercises: data.exercises },
       }));
       setSelectedCircuitId(data.program.id);
+
+      // Auto-favorite the newly created circuit
+      if (user) {
+        await toggleCircuitFavorite(data.program.id);
+      }
+
       setView('dashboard');
       setStatus('Circuit-pass sparat!');
     } catch (err) {
@@ -901,7 +960,8 @@ function App() {
       const method = String(workout?.program_method || 'progressivt');
       return `${exercise} • ${method}`;
     }
-    if (type === 'hiit') return 'HIIT';
+    if (type === 'hiit') return workout?.hiit_program_title || 'HIIT';
+    if (type === 'circuit') return workout?.hiit_program_title || 'Circuit';
     if (type === 'strength') return 'Styrka';
     if (type === 'run') return 'Löpning';
     if (type === 'treadmill') return 'Löpband';
@@ -1447,29 +1507,42 @@ function App() {
               </button>
             </div>
 
-            {circuitPrograms.length > 0 ? (
+            {sortedCircuitPrograms.length > 0 ? (
               <div className="program-list">
-                {circuitPrograms.map((program) => (
-                  <div
-                    key={program.id}
-                    className={`program-card ${selectedCircuitId === program.id ? 'active' : ''}`}
-                  >
-                    <div className="program-content" onClick={() => { selectCircuitProgram(program.id); setView('dashboard'); }}>
-                      <div className="program-title">{program.title}</div>
-                      <div className="program-meta">
-                        {program.rest_seconds}s paus • {program.is_public ? 'Delad' : 'Privat'}
+                {sortedCircuitPrograms.map((program) => {
+                  const circuitFavorited = isCircuitFavorited(program.id);
+                  const myFav = isMyCircuitFavorite(program.id);
+                  const favUsers = getCircuitFavoriteUsers(program.id);
+                  return (
+                    <div
+                      key={program.id}
+                      className={`program-card ${selectedCircuitId === program.id ? 'active' : ''}`}
+                    >
+                      <button
+                        className={`fav-btn ${myFav ? 'is-fav' : ''} ${circuitFavorited && !myFav ? 'others-fav' : ''}`}
+                        onClick={() => toggleCircuitFavorite(program.id)}
+                        title={myFav ? 'Ta bort din favorit' : circuitFavorited ? `Lägg till (${favUsers.join(', ')} gillar)` : 'Lägg till favorit'}
+                      >
+                        {myFav ? '★' : circuitFavorited ? '★' : '☆'}
+                      </button>
+                      <div className="program-content" onClick={() => { selectCircuitProgram(program.id); setView('dashboard'); }}>
+                        <div className="program-title">{program.title}</div>
+                        <div className="program-meta">
+                          {program.rest_seconds}s paus • {program.is_public ? 'Delad' : 'Privat'}
+                          {circuitFavorited && <span className="fav-users"> • ★ {favUsers.join(', ')}</span>}
+                        </div>
+                        <p className="program-desc">{program.description || 'Rep-baserat träningspass'}</p>
                       </div>
-                      <p className="program-desc">{program.description || 'Rep-baserat träningspass'}</p>
+                      <div className="card-actions">
+                        {program.user_id === user?.id && (
+                          <button type="button" className="ghost tiny danger" onClick={() => { if (window.confirm('Ta bort detta circuit?')) handleDeleteCircuit(program.id); }}>
+                            🗑 Ta bort
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="card-actions">
-                      {program.user_id === user?.id && (
-                        <button type="button" className="ghost tiny danger" onClick={() => { if (window.confirm('Ta bort detta circuit?')) handleDeleteCircuit(program.id); }}>
-                          🗑 Ta bort
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <p className="empty-state">
@@ -1743,20 +1816,45 @@ function App() {
                 <button className="modal-close" onClick={() => setShowCircuitPicker(false)}>✕</button>
               </div>
               <div className="program-picker-list">
-                {circuitPrograms.length > 0 ? (
-                  circuitPrograms.map((p) => (
-                    <button
-                      key={p.id}
-                      className={`picker-item ${selectedCircuitId === p.id ? 'active' : ''}`}
-                      onClick={() => {
-                        selectCircuitProgram(p.id);
-                        setShowCircuitPicker(false);
-                      }}
-                    >
-                      <span className="picker-title">{p.title}</span>
-                      <span className="picker-meta">{p.rest_seconds}s paus</span>
-                    </button>
-                  ))
+                {sortedCircuitPrograms.length > 0 ? (
+                  <>
+                    {sortedCircuitPrograms.filter(p => isCircuitFavorited(p.id)).length > 0 && (
+                      <>
+                        <div className="picker-section-label">Favoriter</div>
+                        {sortedCircuitPrograms.filter(p => isCircuitFavorited(p.id)).map((p) => (
+                          <button
+                            key={p.id}
+                            className={`picker-item ${selectedCircuitId === p.id ? 'active' : ''}`}
+                            onClick={() => {
+                              selectCircuitProgram(p.id);
+                              setShowCircuitPicker(false);
+                            }}
+                          >
+                            <span className="picker-title">{p.title}</span>
+                            <span className="picker-meta">{p.rest_seconds}s paus</span>
+                          </button>
+                        ))}
+                      </>
+                    )}
+                    {sortedCircuitPrograms.filter(p => !isCircuitFavorited(p.id)).length > 0 && (
+                      <>
+                        <div className="picker-section-label">Alla pass</div>
+                        {sortedCircuitPrograms.filter(p => !isCircuitFavorited(p.id)).map((p) => (
+                          <button
+                            key={p.id}
+                            className={`picker-item ${selectedCircuitId === p.id ? 'active' : ''}`}
+                            onClick={() => {
+                              selectCircuitProgram(p.id);
+                              setShowCircuitPicker(false);
+                            }}
+                          >
+                            <span className="picker-title">{p.title}</span>
+                            <span className="picker-meta">{p.rest_seconds}s paus</span>
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </>
                 ) : (
                   <p className="empty-state">Inga circuit-pass än</p>
                 )}
