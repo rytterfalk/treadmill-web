@@ -14,6 +14,8 @@ import CalendarGrid from './components/CalendarGrid';
 import ProgressiveProgramWizard from './components/ProgressiveProgramWizard';
 import DailyChallenge from './components/DailyChallenge';
 import AdminPanel from './components/AdminPanel';
+import CircuitEditor from './components/CircuitEditor';
+import CircuitTimer from './components/CircuitTimer';
 
 const defaultExercises = [
   { title: 'Jumping Jacks', durationSeconds: 30, restSeconds: 5, notes: '' },
@@ -116,6 +118,13 @@ function App() {
   const [progressiveStatus, setProgressiveStatus] = useState('idle');
   const [selectedProgramDayDate, setSelectedProgramDayDate] = useState(null);
 
+  // Circuit state
+  const [circuitPrograms, setCircuitPrograms] = useState([]);
+  const [circuitProgramDetails, setCircuitProgramDetails] = useState({});
+  const [selectedCircuitId, setSelectedCircuitId] = useState(null);
+  const [circuitCollapsed, setCircuitCollapsed] = useState(false);
+  const [showCircuitPicker, setShowCircuitPicker] = useState(false);
+
   // Helper to format duration
   function formatDuration(seconds) {
     if (!seconds) return 'Okänd tid';
@@ -210,6 +219,12 @@ function App() {
       try {
         setHiitCollapsed(localStorage.getItem(getUserKey('hiitCollapsed')) === 'true');
       } catch {}
+      // Load user-specific circuit settings
+      try {
+        const savedCircuitId = localStorage.getItem(getUserKey('selectedCircuit'));
+        if (savedCircuitId) setSelectedCircuitId(Number(savedCircuitId));
+        setCircuitCollapsed(localStorage.getItem(getUserKey('circuitCollapsed')) === 'true');
+      } catch {}
     } else {
       setFavorites([]);
     }
@@ -227,11 +242,23 @@ function App() {
     try { localStorage.setItem(getUserKey('selectedProgram'), String(selectedProgramId)); } catch {}
   }, [selectedProgramId, user]);
 
+  // Save circuit collapsed state and selected circuit
+  useEffect(() => {
+    if (!user) return;
+    try { localStorage.setItem(getUserKey('circuitCollapsed'), circuitCollapsed ? 'true' : 'false'); } catch {}
+  }, [circuitCollapsed, user]);
+
+  useEffect(() => {
+    if (!user || !selectedCircuitId) return;
+    try { localStorage.setItem(getUserKey('selectedCircuit'), String(selectedCircuitId)); } catch {}
+  }, [selectedCircuitId, user]);
+
   useEffect(() => {
     if (!user) return;
     if (view !== 'dashboard') return;
     loadTodayThing();
     loadDaySessions(getLocalDateString());
+    loadCircuitPrograms();
   }, [user, view]);
 
   useEffect(() => {
@@ -246,8 +273,9 @@ function App() {
 
   useEffect(() => {
     if (!user) return;
-    if (view === 'programs' || view === 'builder' || view === 'progressive-wizard') {
+    if (view === 'programs' || view === 'builder' || view === 'progressive-wizard' || view === 'circuit-editor') {
       loadProgressivePrograms();
+      loadCircuitPrograms();
     }
   }, [user, view]);
 
@@ -467,6 +495,84 @@ function App() {
       await api(`/api/progressive-programs/${id}/deactivate`, { method: 'POST' });
       setProgressivePrograms((prev) => prev.map((p) => (p.id === id ? { ...p, active: 0 } : p)));
       setStatus('Program avaktiverat');
+    } catch (err) {
+      setStatus(err.message);
+    }
+  }
+
+  // Circuit functions
+  async function loadCircuitPrograms() {
+    try {
+      const data = await api('/api/circuit/programs');
+      setCircuitPrograms(data.programs || []);
+    } catch (err) {
+      console.error('Failed to load circuit programs:', err);
+    }
+  }
+
+  async function loadCircuitProgramDetails(id) {
+    if (circuitProgramDetails[id]) return circuitProgramDetails[id];
+    try {
+      const data = await api(`/api/circuit/programs/${id}`);
+      setCircuitProgramDetails((prev) => ({ ...prev, [id]: data }));
+      return data;
+    } catch (err) {
+      setStatus(err.message);
+      return null;
+    }
+  }
+
+  async function selectCircuitProgram(id) {
+    setSelectedCircuitId(id);
+    await loadCircuitProgramDetails(id);
+  }
+
+  async function handleSaveCircuit(circuitData) {
+    try {
+      const data = await api('/api/circuit/programs', {
+        method: 'POST',
+        body: JSON.stringify(circuitData),
+      });
+      setCircuitPrograms((prev) => [data.program, ...prev]);
+      setCircuitProgramDetails((prev) => ({
+        ...prev,
+        [data.program.id]: { program: data.program, exercises: data.exercises },
+      }));
+      setSelectedCircuitId(data.program.id);
+      setView('dashboard');
+      setStatus('Circuit-pass sparat!');
+    } catch (err) {
+      setStatus(err.message);
+    }
+  }
+
+  async function handleDeleteCircuit(id) {
+    try {
+      await api(`/api/circuit/programs/${id}`, { method: 'DELETE' });
+      setCircuitPrograms((prev) => prev.filter((p) => p.id !== id));
+      setCircuitProgramDetails((prev) => {
+        const copy = { ...prev };
+        delete copy[id];
+        return copy;
+      });
+      if (selectedCircuitId === id) {
+        setSelectedCircuitId(circuitPrograms.find((p) => p.id !== id)?.id || null);
+      }
+      setStatus('Circuit-pass borttaget');
+    } catch (err) {
+      setStatus(err.message);
+    }
+  }
+
+  async function handleCircuitComplete(payload) {
+    if (!user) return;
+    try {
+      await api('/api/circuit/sessions', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      setStatus(`Circuit klart! ${payload.roundsCompleted} varv på ${Math.round(payload.totalSeconds / 60)} min`);
+      loadDaySessions(getLocalDateString());
     } catch (err) {
       setStatus(err.message);
     }
@@ -1143,6 +1249,24 @@ function App() {
     );
   }
 
+  // CIRCUIT EDITOR VIEW
+  if (view === 'circuit-editor') {
+    return (
+      <div className="page">
+        <NavBar user={user} view={view} onChangeView={setView} onLogout={handleLogout} />
+        {status && <div className="status floating">{status}</div>}
+        <div className="grid">
+          <section className="panel">
+            <CircuitEditor
+              onSave={handleSaveCircuit}
+              onCancel={() => setView('programs')}
+            />
+          </section>
+        </div>
+      </div>
+    );
+  }
+
   // PROGRAMS VIEW - "Passen"
   if (view === 'programs' || view === 'builder' || view === 'progressive-wizard') {
     return (
@@ -1307,6 +1431,49 @@ function App() {
             ) : (
               <p className="empty-state">
                 Inga progressiva program ännu. Klicka “+ Skapa nytt pass” och välj “Progressivt program”.
+              </p>
+            )}
+          </section>
+
+          {/* Circuit section */}
+          <section className="panel">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Rep-baserat</p>
+                <h3>Circuit</h3>
+              </div>
+              <button className="primary small" onClick={() => setView('circuit-editor')}>
+                + Nytt circuit
+              </button>
+            </div>
+
+            {circuitPrograms.length > 0 ? (
+              <div className="program-list">
+                {circuitPrograms.map((program) => (
+                  <div
+                    key={program.id}
+                    className={`program-card ${selectedCircuitId === program.id ? 'active' : ''}`}
+                  >
+                    <div className="program-content" onClick={() => { selectCircuitProgram(program.id); setView('dashboard'); }}>
+                      <div className="program-title">{program.title}</div>
+                      <div className="program-meta">
+                        {program.rest_seconds}s paus • {program.is_public ? 'Delad' : 'Privat'}
+                      </div>
+                      <p className="program-desc">{program.description || 'Rep-baserat träningspass'}</p>
+                    </div>
+                    <div className="card-actions">
+                      {program.user_id === user?.id && (
+                        <button type="button" className="ghost tiny danger" onClick={() => { if (window.confirm('Ta bort detta circuit?')) handleDeleteCircuit(program.id); }}>
+                          🗑 Ta bort
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="empty-state">
+                Inga circuit-pass ännu. Skapa ett rep-baserat träningspass!
               </p>
             )}
           </section>
@@ -1480,6 +1647,40 @@ function App() {
           )}
         </section>
 
+        {/* Circuit section */}
+        <section className={`panel hero circuit-panel ${circuitCollapsed ? 'collapsed' : ''}`}>
+          <div className="panel-header clickable" onClick={() => setCircuitCollapsed(!circuitCollapsed)}>
+            <div>
+              <p className="eyebrow">Circuit-pass</p>
+              <h2>
+                {circuitProgramDetails[selectedCircuitId]?.program?.title || 'Välj ett circuit'}
+                {circuitCollapsed ? ' ▶' : ' ▼'}
+              </h2>
+            </div>
+            {!circuitCollapsed && (
+              <button className="ghost" onClick={(e) => { e.stopPropagation(); setShowCircuitPicker(true); }}>
+                Byt circuit ▾
+              </button>
+            )}
+          </div>
+
+          {!circuitCollapsed && (
+            selectedCircuitId && circuitProgramDetails[selectedCircuitId] ? (
+              <CircuitTimer
+                key={selectedCircuitId}
+                program={circuitProgramDetails[selectedCircuitId].program}
+                exercises={circuitProgramDetails[selectedCircuitId].exercises}
+                onComplete={handleCircuitComplete}
+              />
+            ) : (
+              <div className="no-program-selected">
+                <p>Inget circuit valt</p>
+                <button onClick={() => setView('programs')}>Välj circuit</button>
+              </div>
+            )
+          )}
+        </section>
+
 {/* Genomförda pass visas nu i "Veckans träning" i DailyChallenge-komponenten */}
 
         {/* Pass-väljare modal */}
@@ -1527,6 +1728,42 @@ function App() {
               <div className="modal-footer">
                 <button className="ghost" onClick={() => { setShowQuickSelect(false); setView('programs'); }}>
                   Hantera pass →
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Circuit-väljare modal */}
+        {showCircuitPicker && (
+          <div className="modal-overlay" onClick={() => setShowCircuitPicker(false)}>
+            <div className="modal program-picker-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3>Välj circuit-pass</h3>
+                <button className="modal-close" onClick={() => setShowCircuitPicker(false)}>✕</button>
+              </div>
+              <div className="program-picker-list">
+                {circuitPrograms.length > 0 ? (
+                  circuitPrograms.map((p) => (
+                    <button
+                      key={p.id}
+                      className={`picker-item ${selectedCircuitId === p.id ? 'active' : ''}`}
+                      onClick={() => {
+                        selectCircuitProgram(p.id);
+                        setShowCircuitPicker(false);
+                      }}
+                    >
+                      <span className="picker-title">{p.title}</span>
+                      <span className="picker-meta">{p.rest_seconds}s paus</span>
+                    </button>
+                  ))
+                ) : (
+                  <p className="empty-state">Inga circuit-pass än</p>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button className="ghost" onClick={() => { setShowCircuitPicker(false); setView('circuit-editor'); }}>
+                  + Skapa nytt circuit →
                 </button>
               </div>
             </div>

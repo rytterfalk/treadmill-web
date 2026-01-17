@@ -3195,3 +3195,416 @@ button.tiny {
   border-radius: var(--radius-sm);
   margin-bottom: 1rem;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   CIRCUIT EDITOR
+   ═══════════════════════════════════════════════════════════ */
+
+.circuit-editor {
+  padding: 1rem;
+}
+
+.circuit-editor .editor-header {
+  margin-bottom: 1.5rem;
+}
+
+.circuit-editor .editor-header h2 {
+  margin: 0 0 0.25rem;
+}
+
+.circuit-editor .editor-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.circuit-editor .form-row label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+}
+
+.circuit-editor .form-row input,
+.circuit-editor .form-row textarea,
+.circuit-editor .form-row select {
+  width: 100%;
+}
+
+.circuit-editor .form-row-inline {
+  display: flex;
+  gap: 1rem;
+}
+
+.circuit-editor .form-row-inline .form-row {
+  flex: 1;
+}
+
+.circuit-editor .input-with-unit {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.circuit-editor .input-with-unit input {
+  width: 80px;
+}
+
+.circuit-editor .exercise-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.circuit-editor .exercise-list-header h3 {
+  margin: 0;
+}
+
+.circuit-editor .exercise-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.circuit-editor .exercise-card {
+  display: flex;
+  gap: 0.75rem;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  position: relative;
+}
+
+.circuit-editor .exercise-card.dragging {
+  opacity: 0.5;
+}
+
+.circuit-editor .exercise-drag-handle {
+  cursor: grab;
+  color: var(--text-muted);
+  padding: 0.25rem;
+  user-select: none;
+}
+
+.circuit-editor .exercise-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.circuit-editor .exercise-title-input {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.circuit-editor .exercise-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.circuit-editor .reps-input {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.circuit-editor .reps-input input {
+  width: 60px;
+  text-align: center;
+}
+
+.circuit-editor .exercise-notes {
+  flex: 1;
+  font-size: 0.9rem;
+}
+
+.circuit-editor .audio-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.circuit-editor .audio-control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.circuit-editor .audio-label {
+  color: var(--text-muted);
+}
+
+.circuit-editor .audio-preview {
+  height: 28px;
+  max-width: 150px;
+}
+
+.circuit-editor .remove-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.25rem;
+  font-size: 1rem;
+}
+
+.circuit-editor .remove-btn:hover {
+  color: #ff6b6b;
+}
+
+.circuit-editor .add-exercise-btn {
+  width: 100%;
+  margin-bottom: 1.5rem;
+}
+
+.circuit-editor .editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.circuit-editor button.recording {
+  color: #ff6b6b;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CIRCUIT TIMER
+   ═══════════════════════════════════════════════════════════ */
+
+.circuit-timer {
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.circuit-timer.ready-phase h2 {
+  margin: 0 0 0.5rem;
+}
+
+.circuit-timer .circuit-description {
+  color: var(--text-muted);
+  margin-bottom: 1.5rem;
+}
+
+.circuit-timer .circuit-preview {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.circuit-timer .preview-exercise {
+  background: var(--bg-secondary);
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.circuit-timer .preview-reps {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.circuit-timer .rest-info {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
+}
+
+.circuit-timer .start-btn {
+  font-size: 1.25rem;
+  padding: 1rem 2rem;
+}
+
+/* Stats bar */
+.circuit-timer .circuit-stats-bar {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  background: linear-gradient(135deg, rgba(255, 193, 7, 0.15), rgba(255, 152, 0, 0.1));
+  border: 2px solid rgba(255, 193, 7, 0.4);
+  border-radius: var(--radius-lg);
+  margin-bottom: 2rem;
+}
+
+.circuit-timer .stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: var(--radius-md);
+  min-width: 70px;
+}
+
+.circuit-timer .stat-item .stat-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 0.15rem;
+}
+
+.circuit-timer .stat-item .stat-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #ffc107;
+  text-shadow: 0 0 10px rgba(255, 193, 7, 0.5);
+}
+
+/* Highlight reps stat */
+.circuit-timer .stat-item.reps-stat {
+  background: rgba(255, 193, 7, 0.2);
+  border: 1px solid rgba(255, 193, 7, 0.4);
+}
+
+.circuit-timer .stat-item.reps-stat .stat-value {
+  font-size: 1.75rem;
+  color: #ffc107;
+}
+
+/* Exercise display */
+.circuit-timer .exercise-display,
+.circuit-timer .rest-display {
+  margin-bottom: 2rem;
+}
+
+.circuit-timer .phase-label {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.circuit-timer .exercise-reps {
+  font-size: 5rem;
+  font-weight: 800;
+  color: var(--accent);
+  line-height: 1;
+}
+
+.circuit-timer .exercise-name {
+  font-size: 1.75rem;
+  font-weight: 600;
+  margin: 0.5rem 0;
+}
+
+.circuit-timer .exercise-notes {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.circuit-timer .exercise-timer {
+  font-size: 1.5rem;
+  color: var(--text-muted);
+  margin-bottom: 1.5rem;
+}
+
+.circuit-timer .done-btn {
+  font-size: 1.5rem;
+  padding: 1.25rem 3rem;
+}
+
+/* Rest display */
+.circuit-timer .rest-countdown {
+  font-size: 6rem;
+  font-weight: 800;
+  color: var(--accent);
+  line-height: 1;
+}
+
+.circuit-timer .next-up {
+  font-size: 1.1rem;
+  color: var(--text-muted);
+  margin-top: 1rem;
+}
+
+/* Progress dots */
+.circuit-timer .exercise-progress {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.circuit-timer .progress-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border);
+}
+
+.circuit-timer .progress-dot.current {
+  background: var(--accent);
+  border-color: var(--accent);
+  transform: scale(1.2);
+}
+
+.circuit-timer .progress-dot.done {
+  background: var(--accent);
+  border-color: var(--accent);
+  opacity: 0.5;
+}
+
+/* Controls */
+.circuit-timer .circuit-controls {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.circuit-timer.paused .exercise-reps,
+.circuit-timer.paused .rest-countdown {
+  opacity: 0.5;
+}
+
+/* Done phase */
+.circuit-timer.done-phase h2 {
+  margin-bottom: 1.5rem;
+}
+
+.circuit-timer .final-stats {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+}
+
+.circuit-timer .final-stats .stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.circuit-timer .final-stats .stat-value {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.circuit-timer .final-stats .stat-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
