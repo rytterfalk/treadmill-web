@@ -590,25 +590,25 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
           const isTimedChallenge = c.is_timed === 1;
           return (
             <div key={c.id} className={`daily-challenge-card full-width expanded ${cd.ready ? 'ready' : ''} ${isTimedChallenge ? 'timed' : ''}`}>
-              {/* Header row */}
+              {/* Header row - title and stats on same line */}
               <div className="challenge-card-header">
-                <div className="challenge-card-title">
-                  <strong>{c.exercise}</strong>
-                  <span className="challenge-card-meta">
-                    {isTimedChallenge
-                      ? `${formatTimeStats(c.target_seconds)} × var ${c.interval_minutes} min`
-                      : `${c.target_reps} × var ${c.interval_minutes} min`
-                    }
-                  </span>
+                <div className="challenge-card-title-row">
+                  <strong className="challenge-card-name">{c.exercise}</strong>
+                  <div className="challenge-card-stats-inline">
+                    {isTimedChallenge ? (
+                      <span>{formatTimeStats(c.total_seconds || 0)}</span>
+                    ) : (
+                      <span>{c.total_reps || 0} reps</span>
+                    )}
+                    <span className="stats-separator">·</span>
+                    <span>{c.sets_count || 0} set</span>
+                  </div>
                 </div>
-                <div className="challenge-card-stats-inline">
-                  {isTimedChallenge ? (
-                    <span>{formatTimeStats(c.total_seconds || 0)}</span>
-                  ) : (
-                    <span>{c.total_reps || 0} reps</span>
-                  )}
-                  <span className="stats-separator">·</span>
-                  <span>{c.sets_count || 0} set</span>
+                <div className="challenge-card-meta">
+                  {isTimedChallenge
+                    ? `${formatTimeStats(c.target_seconds)} × var ${c.interval_minutes} min`
+                    : `${c.target_reps} × var ${c.interval_minutes} min`
+                  }
                 </div>
               </div>
 
