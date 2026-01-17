@@ -45,15 +45,19 @@ function CircuitTimer({ program, exercises, onComplete }) {
 
   // Play audio when exercise starts
   useEffect(() => {
-    if (phase === 'exercise' && currentExercise?.audio_url) {
-      exerciseAudioRef.current?.play().catch(() => {});
+    if (phase === 'exercise' && currentExercise?.audio_url && exerciseAudioRef.current) {
+      const audio = exerciseAudioRef.current;
+      audio.load();
+      audio.play().catch((err) => console.log('Audio play failed:', err));
     }
   }, [phase, currentExerciseIdx]);
 
   // Play audio when rest starts
   useEffect(() => {
-    if (phase === 'rest' && currentExercise?.rest_audio_url) {
-      restAudioRef.current?.play().catch(() => {});
+    if (phase === 'rest' && currentExercise?.rest_audio_url && restAudioRef.current) {
+      const audio = restAudioRef.current;
+      audio.load();
+      audio.play().catch((err) => console.log('Rest audio play failed:', err));
     }
   }, [phase, currentExerciseIdx]);
 
@@ -167,13 +171,19 @@ function CircuitTimer({ program, exercises, onComplete }) {
   // Active phase (exercise or rest)
   return (
     <div className={`circuit-timer ${phase}-phase ${isPaused ? 'paused' : ''}`}>
-      {/* Hidden audio elements */}
-      {currentExercise?.audio_url && (
-        <audio ref={exerciseAudioRef} src={currentExercise.audio_url} preload="auto" />
-      )}
-      {currentExercise?.rest_audio_url && (
-        <audio ref={restAudioRef} src={currentExercise.rest_audio_url} preload="auto" />
-      )}
+      {/* Hidden audio elements - always render, update src dynamically */}
+      <audio
+        ref={exerciseAudioRef}
+        src={currentExercise?.audio_url || ''}
+        preload="auto"
+        style={{ display: 'none' }}
+      />
+      <audio
+        ref={restAudioRef}
+        src={currentExercise?.rest_audio_url || ''}
+        preload="auto"
+        style={{ display: 'none' }}
+      />
 
       {/* Stats bar */}
       <div className="circuit-stats-bar">

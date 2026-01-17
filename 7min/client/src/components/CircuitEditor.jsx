@@ -186,7 +186,19 @@ function CircuitEditor({ prefill, onSave, onCancel }) {
               <input
                 type="number"
                 value={restSeconds}
-                onChange={(e) => setRestSeconds(Math.max(5, Number(e.target.value) || 30))}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '') {
+                    setRestSeconds('');
+                  } else {
+                    setRestSeconds(Number(val));
+                  }
+                }}
+                onBlur={() => {
+                  if (restSeconds === '' || restSeconds < 5) {
+                    setRestSeconds(30);
+                  }
+                }}
                 min={5}
                 max={300}
               />
