@@ -101,19 +101,11 @@ function App() {
       to: getLocalDateString(end),
     };
   });
-  const [favorites, setFavorites] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('7min_favorites') || '[]');
-    } catch {
-      return [];
-    }
-  });
+  const [favorites, setFavorites] = useState([]);
   const [showQuickSelect, setShowQuickSelect] = useState(false);
   const [editingProgram, setEditingProgram] = useState(null); // For editing existing programs
   const [showCreateTypePicker, setShowCreateTypePicker] = useState(false);
-  const [hiitCollapsed, setHiitCollapsed] = useState(() => {
-    try { return localStorage.getItem('7min_hiit_collapsed') === 'true'; } catch { return false; }
-  });
+  const [hiitCollapsed, setHiitCollapsed] = useState(false);
   const [todayThing, setTodayThing] = useState(null);
   const [todayThingStatus, setTodayThingStatus] = useState('idle');
   const [lastWorkout, setLastWorkout] = useState(null);
@@ -132,13 +124,19 @@ function App() {
     return `${mins} min`;
   }
 
-  // Toggle favorite
+  // Helper to get user-specific localStorage key
+  function getUserKey(key) {
+    return user ? `7min_${user.id}_${key}` : `7min_${key}`;
+  }
+
+  // Toggle favorite (user-specific)
   function toggleFavorite(programId) {
+    if (!user) return;
     setFavorites((prev) => {
       const next = prev.includes(programId)
         ? prev.filter((id) => id !== programId)
         : [...prev, programId];
-      localStorage.setItem('7min_favorites', JSON.stringify(next));
+      try { localStorage.setItem(getUserKey('favorites'), JSON.stringify(next)); } catch {}
       return next;
     });
   }
@@ -165,16 +163,40 @@ function App() {
     checkSession();
   }, []);
 
+  // Load user-specific settings when user logs in
   useEffect(() => {
     if (user) {
       loadSessions();
+      // Load user-specific favorites
+      try {
+        const savedFavs = JSON.parse(localStorage.getItem(getUserKey('favorites')) || '[]');
+        setFavorites(savedFavs);
+      } catch { setFavorites([]); }
+      // Load user-specific selected program
+      try {
+        const savedProgramId = localStorage.getItem(getUserKey('selectedProgram'));
+        if (savedProgramId) setSelectedProgramId(Number(savedProgramId));
+      } catch {}
+      // Load user-specific HIIT collapsed state
+      try {
+        setHiitCollapsed(localStorage.getItem(getUserKey('hiitCollapsed')) === 'true');
+      } catch {}
+    } else {
+      setFavorites([]);
     }
   }, [user]);
 
-  // Save HIIT collapsed state
+  // Save HIIT collapsed state (user-specific)
   useEffect(() => {
-    try { localStorage.setItem('7min_hiit_collapsed', hiitCollapsed ? 'true' : 'false'); } catch {}
-  }, [hiitCollapsed]);
+    if (!user) return;
+    try { localStorage.setItem(getUserKey('hiitCollapsed'), hiitCollapsed ? 'true' : 'false'); } catch {}
+  }, [hiitCollapsed, user]);
+
+  // Save selected program (user-specific)
+  useEffect(() => {
+    if (!user || !selectedProgramId) return;
+    try { localStorage.setItem(getUserKey('selectedProgram'), String(selectedProgramId)); } catch {}
+  }, [selectedProgramId, user]);
 
   useEffect(() => {
     if (!user) return;
@@ -379,6 +401,33 @@ function App() {
         setSelectedProgramId(next?.id || null);
       }
       setStatus('Pass borttaget');
+    } catch (err) {
+      setStatus(err.message);
+    }
+  }
+
+  async function handleRenameProgram(id, currentTitle) {
+    const newTitle = window.prompt('Nytt namn på passet:', currentTitle);
+    if (!newTitle || newTitle.trim() === currentTitle) return;
+    try {
+      const data = await api(`/api/programs/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ title: newTitle.trim() }),
+      });
+      setPrograms((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, title: data.program.title } : p))
+      );
+      setProgramDetails((prev) => {
+        if (!prev[id]) return prev;
+        return {
+          ...prev,
+          [id]: {
+            ...prev[id],
+            program: { ...prev[id].program, title: data.program.title },
+          },
+        };
+      });
+      setStatus('Passet omdöpt!');
     } catch (err) {
       setStatus(err.message);
     }
@@ -1149,10 +1198,15 @@ function App() {
                       <p className="program-desc">{program.description || 'Inget upplägg än'}</p>
                     </div>
                     <div className="card-actions">
+                      {program.user_id === user?.id && (
+                        <button type="button" className="ghost tiny" onClick={() => handleRenameProgram(program.id, program.title)}>
+                          ✎ Byt namn
+                        </button>
+                      )}
                       <button type="button" className="ghost tiny" onClick={() => { selectProgram(program.id); setEditingProgram(program); setView('builder'); }}>
-                        ✏️ Editera
+                        ✏️ Kopiera & redigera
                       </button>
-                      {(program.user_id === null && !program.is_public) || program.user_id ? (
+                      {(program.user_id === null && !program.is_public) || program.user_id === user?.id ? (
                         <button type="button" className="ghost tiny danger" onClick={() => { if (window.confirm('Ta bort detta pass?')) handleDeleteProgram(program.id); }}>
                           🗑 Ta bort
                         </button>

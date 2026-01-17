@@ -257,6 +257,61 @@ app.delete('/api/programs/:id', authRequired, (req, res) => {
   res.json({ ok: true, deletedId: program.id });
 });
 
+// Update program metadata (title, description, rounds)
+app.put('/api/programs/:id', authRequired, (req, res) => {
+  const { title, description, rounds } = req.body;
+  const program = db
+    .prepare('SELECT id, user_id, is_public FROM programs WHERE id = ?')
+    .get(req.params.id);
+
+  if (!program) return res.status(404).json({ error: 'Programmet finns inte' });
+
+  const isOwner = program.user_id && program.user_id === req.user.id;
+  if (!isOwner) {
+    return res.status(403).json({ error: 'Du kan bara redigera dina egna pass' });
+  }
+
+  const updates = [];
+  const params = [];
+
+  if (title !== undefined) {
+    if (!title.trim()) {
+      return res.status(400).json({ error: 'Titel får inte vara tom' });
+    }
+    updates.push('title = ?');
+    params.push(title.trim());
+  }
+
+  if (description !== undefined) {
+    updates.push('description = ?');
+    params.push(description.trim());
+  }
+
+  if (rounds !== undefined) {
+    updates.push('rounds = ?');
+    params.push(Number(rounds) || 1);
+  }
+
+  if (updates.length === 0) {
+    return res.status(400).json({ error: 'Inget att uppdatera' });
+  }
+
+  params.push(req.params.id);
+  db.prepare(`UPDATE programs SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+
+  const updated = db
+    .prepare(
+      `SELECT p.id, p.user_id, p.title, p.description, p.rounds, p.is_public, p.created_at,
+              u.name AS owner_name
+       FROM programs p
+       LEFT JOIN users u ON u.id = p.user_id
+       WHERE p.id = ?`
+    )
+    .get(req.params.id);
+
+  res.json({ program: updated });
+});
+
 app.post('/api/programs', authRequired, (req, res) => {
   const { title, description = '', rounds = 1, exercises = [], isPublic = false } = req.body;
   if (!title || !Array.isArray(exercises) || exercises.length === 0) {
