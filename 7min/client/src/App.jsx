@@ -1456,42 +1456,9 @@ function App() {
               <h2>{selectedProgram?.title || 'Välj ett pass'} {hiitCollapsed ? '▶' : '▼'}</h2>
             </div>
             {!hiitCollapsed && (
-              <div className="quick-select-container" onClick={(e) => e.stopPropagation()}>
-                <button className="ghost" onClick={() => setShowQuickSelect(!showQuickSelect)}>
-                  Byt träning ▾
-                </button>
-                {showQuickSelect && (
-                  <div className="quick-select-dropdown">
-                    {favoritePrograms.length > 0 && (
-                      <>
-                        <div className="dropdown-label">Favoriter</div>
-                        {favoritePrograms.map((p) => (
-                          <button
-                            key={p.id}
-                            className="dropdown-item"
-                            onClick={() => {
-                              selectProgram(p.id);
-                              setShowQuickSelect(false);
-                            }}
-                          >
-                            ★ {p.title}
-                          </button>
-                        ))}
-                        <div className="dropdown-divider" />
-                      </>
-                    )}
-                    <button
-                      className="dropdown-item all-programs"
-                      onClick={() => {
-                        setShowQuickSelect(false);
-                        setView('programs');
-                      }}
-                    >
-                      Visa alla pass →
-                    </button>
-                  </div>
-                )}
-              </div>
+              <button className="ghost" onClick={() => setShowQuickSelect(true)}>
+                Byt träning ▾
+              </button>
             )}
           </div>
 
@@ -1514,6 +1481,57 @@ function App() {
         </section>
 
 {/* Genomförda pass visas nu i "Veckans träning" i DailyChallenge-komponenten */}
+
+        {/* Pass-väljare modal */}
+        {showQuickSelect && (
+          <div className="modal-overlay" onClick={() => setShowQuickSelect(false)}>
+            <div className="modal program-picker-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3>Välj träningspass</h3>
+                <button className="modal-close" onClick={() => setShowQuickSelect(false)}>✕</button>
+              </div>
+              <div className="program-picker-list">
+                {favoritePrograms.length > 0 && (
+                  <>
+                    <div className="picker-section-label">★ Favoriter</div>
+                    {favoritePrograms.map((p) => (
+                      <button
+                        key={p.id}
+                        className={`picker-item ${selectedProgramId === p.id ? 'active' : ''}`}
+                        onClick={() => {
+                          selectProgram(p.id);
+                          setShowQuickSelect(false);
+                        }}
+                      >
+                        <span className="picker-title">{p.title}</span>
+                        <span className="picker-meta">{programStats[p.id] ? `${Math.round(programStats[p.id].totalSeconds / 60)} min` : ''}</span>
+                      </button>
+                    ))}
+                  </>
+                )}
+                <div className="picker-section-label">Alla pass</div>
+                {programs.filter(p => !favoritePrograms.some(f => f.id === p.id)).map((p) => (
+                  <button
+                    key={p.id}
+                    className={`picker-item ${selectedProgramId === p.id ? 'active' : ''}`}
+                    onClick={() => {
+                      selectProgram(p.id);
+                      setShowQuickSelect(false);
+                    }}
+                  >
+                    <span className="picker-title">{p.title}</span>
+                    <span className="picker-meta">{programStats[p.id] ? `${Math.round(programStats[p.id].totalSeconds / 60)} min` : ''}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="modal-footer">
+                <button className="ghost" onClick={() => { setShowQuickSelect(false); setView('programs'); }}>
+                  Hantera pass →
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
