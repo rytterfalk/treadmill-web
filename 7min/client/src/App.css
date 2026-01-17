@@ -2051,17 +2051,31 @@ button.tiny {
 }
 
 .quick-select-dropdown {
-  position: absolute;
-  top: 100%;
-  right: 0;
+  position: fixed;
+  top: auto;
+  left: 1rem;
+  right: 1rem;
   margin-top: 0.5rem;
-  min-width: 220px;
+  max-width: 320px;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   z-index: 200;
   padding: 0.5rem 0;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+@media (min-width: 480px) {
+  .quick-select-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: auto;
+    min-width: 280px;
+    max-height: 50vh;
+  }
 }
 
 .dropdown-label {
