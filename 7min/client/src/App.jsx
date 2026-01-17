@@ -101,7 +101,7 @@ function App() {
       to: getLocalDateString(end),
     };
   });
-  const [favorites, setFavorites] = useState([]);
+  const [favorites, setFavorites] = useState([]); // Array of { program_id, user_id, user_name }
   const [showQuickSelect, setShowQuickSelect] = useState(false);
   const [editingProgram, setEditingProgram] = useState(null); // For editing existing programs
   const [showCreateTypePicker, setShowCreateTypePicker] = useState(false);
@@ -129,32 +129,65 @@ function App() {
     return user ? `7min_${user.id}_${key}` : `7min_${key}`;
   }
 
-  // Toggle favorite (user-specific)
-  function toggleFavorite(programId) {
+  // Load favorites from server
+  async function loadFavorites() {
+    try {
+      const data = await api('/api/favorites');
+      setFavorites(data.favorites || []);
+    } catch {
+      setFavorites([]);
+    }
+  }
+
+  // Toggle favorite (shared via API)
+  async function toggleFavorite(programId) {
     if (!user) return;
-    setFavorites((prev) => {
-      const next = prev.includes(programId)
-        ? prev.filter((id) => id !== programId)
-        : [...prev, programId];
-      try { localStorage.setItem(getUserKey('favorites'), JSON.stringify(next)); } catch {}
-      return next;
-    });
+    const existing = favorites.find((f) => f.program_id === programId && f.user_id === user.id);
+    try {
+      if (existing) {
+        await api(`/api/favorites/${programId}`, { method: 'DELETE' });
+        setFavorites((prev) => prev.filter((f) => !(f.program_id === programId && f.user_id === user.id)));
+      } else {
+        await api(`/api/favorites/${programId}`, { method: 'POST' });
+        setFavorites((prev) => [...prev, { program_id: programId, user_id: user.id, user_name: user.name }]);
+      }
+    } catch (err) {
+      setStatus(err.message);
+    }
+  }
+
+  // Check if program is favorited by any user
+  function isFavorited(programId) {
+    return favorites.some((f) => f.program_id === programId);
+  }
+
+  // Check if current user has favorited this program
+  function isMyFavorite(programId) {
+    return user && favorites.some((f) => f.program_id === programId && f.user_id === user.id);
+  }
+
+  // Get who favorited a program
+  function getFavoriteUsers(programId) {
+    return favorites
+      .filter((f) => f.program_id === programId)
+      .map((f) => f.user_name);
   }
 
   // Sort programs with favorites first
   const sortedPrograms = useMemo(() => {
     return [...programs].sort((a, b) => {
-      const aFav = favorites.includes(a.id);
-      const bFav = favorites.includes(b.id);
+      const aFav = isFavorited(a.id);
+      const bFav = isFavorited(b.id);
       if (aFav && !bFav) return -1;
       if (!aFav && bFav) return 1;
       return 0;
     });
   }, [programs, favorites]);
 
-  // Get favorite programs for quick select
+  // Get favorite programs for quick select (all favorites from all users)
   const favoritePrograms = useMemo(() => {
-    return programs.filter((p) => favorites.includes(p.id));
+    const favProgramIds = [...new Set(favorites.map((f) => f.program_id))];
+    return programs.filter((p) => favProgramIds.includes(p.id));
   }, [programs, favorites]);
 
   useEffect(() => {
@@ -167,11 +200,7 @@ function App() {
   useEffect(() => {
     if (user) {
       loadSessions();
-      // Load user-specific favorites
-      try {
-        const savedFavs = JSON.parse(localStorage.getItem(getUserKey('favorites')) || '[]');
-        setFavorites(savedFavs);
-      } catch { setFavorites([]); }
+      loadFavorites();
       // Load user-specific selected program
       try {
         const savedProgramId = localStorage.getItem(getUserKey('selectedProgram'));
@@ -1172,23 +1201,26 @@ function App() {
             )}
             <div className="program-list">
               {sortedPrograms.map((program) => {
-                const isFav = favorites.includes(program.id);
+                const programFavorited = isFavorited(program.id);
+                const myFav = isMyFavorite(program.id);
+                const favUsers = getFavoriteUsers(program.id);
                 return (
                   <div
                     key={program.id}
                     className={`program-card ${selectedProgramId === program.id ? 'active' : ''}`}
                   >
                     <button
-                      className={`fav-btn ${isFav ? 'is-fav' : ''}`}
+                      className={`fav-btn ${myFav ? 'is-fav' : ''} ${programFavorited && !myFav ? 'others-fav' : ''}`}
                       onClick={() => toggleFavorite(program.id)}
-                      title={isFav ? 'Ta bort favorit' : 'Lägg till favorit'}
+                      title={myFav ? 'Ta bort din favorit' : programFavorited ? `Lägg till (${favUsers.join(', ')} gillar)` : 'Lägg till favorit'}
                     >
-                      {isFav ? '★' : '☆'}
+                      {myFav ? '★' : programFavorited ? '★' : '☆'}
                     </button>
                     <div className="program-content" onClick={() => { selectProgram(program.id); setView('dashboard'); }}>
                       <div className="program-title">{program.title}</div>
                       <div className="program-meta">
                         {program.rounds} varv • {program.is_public ? 'Delad' : 'Privat'}
+                        {programFavorited && <span className="fav-users"> • ★ {favUsers.join(', ')}</span>}
                       </div>
                       <div className="program-meta subtle">
                         {programStats[program.id]

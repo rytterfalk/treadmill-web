@@ -2151,6 +2151,15 @@ button.tiny {
   color: var(--accent);
 }
 
+.program-card .fav-btn.others-fav {
+  color: var(--text-muted);
+}
+
+.fav-users {
+  color: var(--accent);
+  font-weight: 500;
+}
+
 .program-content {
   cursor: pointer;
   flex: 1;

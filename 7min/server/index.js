@@ -241,6 +241,49 @@ app.get('/api/programs/:id', (req, res) => {
   res.json({ program, exercises: withExerciseMedia(exercises) });
 });
 
+// Get all favorites (shared across users)
+app.get('/api/favorites', authRequired, (req, res) => {
+  const favorites = db
+    .prepare(
+      `SELECT pf.program_id, pf.user_id, pf.created_at, u.name AS user_name
+       FROM program_favorites pf
+       JOIN users u ON u.id = pf.user_id
+       ORDER BY pf.created_at DESC`
+    )
+    .all();
+  res.json({ favorites });
+});
+
+// Add a favorite
+app.post('/api/favorites/:programId', authRequired, (req, res) => {
+  const programId = Number(req.params.programId);
+  const program = db.prepare('SELECT id FROM programs WHERE id = ?').get(programId);
+  if (!program) return res.status(404).json({ error: 'Programmet finns inte' });
+
+  try {
+    db.prepare('INSERT INTO program_favorites (user_id, program_id) VALUES (?, ?)').run(
+      req.user.id,
+      programId
+    );
+  } catch (err) {
+    if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.json({ ok: true, alreadyExists: true });
+    }
+    throw err;
+  }
+  res.json({ ok: true });
+});
+
+// Remove a favorite
+app.delete('/api/favorites/:programId', authRequired, (req, res) => {
+  const programId = Number(req.params.programId);
+  db.prepare('DELETE FROM program_favorites WHERE user_id = ? AND program_id = ?').run(
+    req.user.id,
+    programId
+  );
+  res.json({ ok: true });
+});
+
 app.delete('/api/programs/:id', authRequired, (req, res) => {
   const program = db
     .prepare('SELECT id, user_id, is_public FROM programs WHERE id = ?')
