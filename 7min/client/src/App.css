@@ -1945,26 +1945,31 @@ button.tiny {
   margin: 0 auto;
 }
 
-.start-panel {
+.start-panel,
+.circuit-panel {
   padding: 1.5rem;
   transition: all 0.2s ease;
 }
 
-.start-panel.collapsed {
+.start-panel.collapsed,
+.circuit-panel.collapsed {
   min-height: auto;
   padding: 0.75rem 1.25rem;
 }
 
-.start-panel.collapsed .panel-header {
+.start-panel.collapsed .panel-header,
+.circuit-panel.collapsed .panel-header {
   margin-bottom: 0;
 }
 
-.start-panel .panel-header.clickable {
+.start-panel .panel-header.clickable,
+.circuit-panel .panel-header.clickable {
   cursor: pointer;
   user-select: none;
 }
 
-.start-panel .panel-header.clickable:hover h2 {
+.start-panel .panel-header.clickable:hover h2,
+.circuit-panel .panel-header.clickable:hover h2 {
   color: var(--accent);
 }
 

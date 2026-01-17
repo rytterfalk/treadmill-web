@@ -122,7 +122,7 @@ function App() {
   const [circuitPrograms, setCircuitPrograms] = useState([]);
   const [circuitProgramDetails, setCircuitProgramDetails] = useState({});
   const [selectedCircuitId, setSelectedCircuitId] = useState(null);
-  const [circuitCollapsed, setCircuitCollapsed] = useState(false);
+  const [circuitCollapsed, setCircuitCollapsed] = useState(true);
   const [showCircuitPicker, setShowCircuitPicker] = useState(false);
 
   // Helper to format duration
