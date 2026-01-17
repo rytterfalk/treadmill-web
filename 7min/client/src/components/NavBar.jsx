@@ -34,6 +34,14 @@ function NavBar({ user, view, onChangeView, onLogout }) {
         >
           Utrustning
         </button>
+        {user.is_admin === 1 && (
+          <button
+            className={view === 'admin' ? 'menu-item active' : 'menu-item'}
+            onClick={() => onChangeView('admin')}
+          >
+            Admin
+          </button>
+        )}
       </nav>
 
       <div className="user-area">

@@ -13,6 +13,7 @@ import WeekProgress from './components/WeekProgress';
 import CalendarGrid from './components/CalendarGrid';
 import ProgressiveProgramWizard from './components/ProgressiveProgramWizard';
 import DailyChallenge from './components/DailyChallenge';
+import AdminPanel from './components/AdminPanel';
 
 const defaultExercises = [
   { title: 'Jumping Jacks', durationSeconds: 30, restSeconds: 5, notes: '' },
@@ -757,12 +758,14 @@ function App() {
         <div className="auth-card minimal">
           <h1>Logga in</h1>
 
-          <form className="auth-form" onSubmit={handleAuthSubmit}>
+          <form className="auth-form" onSubmit={handleAuthSubmit} autoComplete="on">
             {authMode === 'register' && (
               <label>
                 Namn
                 <input
                   type="text"
+                  name="name"
+                  autoComplete="name"
                   value={authForm.name}
                   onChange={(e) => setAuthForm((f) => ({ ...f, name: e.target.value }))}
                   placeholder="Ditt namn"
@@ -774,6 +777,8 @@ function App() {
               E-post
               <input
                 type="email"
+                name="email"
+                autoComplete={authMode === 'login' ? 'username' : 'email'}
                 value={authForm.email}
                 onChange={(e) => setAuthForm((f) => ({ ...f, email: e.target.value }))}
                 placeholder="du@example.com"
@@ -784,6 +789,8 @@ function App() {
               Lösenord
               <input
                 type="password"
+                name="password"
+                autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
                 value={authForm.password}
                 onChange={(e) => setAuthForm((f) => ({ ...f, password: e.target.value }))}
                 placeholder="Minst 6 tecken"
@@ -1254,6 +1261,21 @@ function App() {
         <div className="grid progress-grid">
           <section className="panel">
             <EquipmentSelector allEquipment={allEquipment} selected={equipmentSlugs} onSave={handleSaveEquipment} />
+          </section>
+        </div>
+      </div>
+    );
+  }
+
+  // ADMIN VIEW
+  if (view === 'admin' && user?.is_admin === 1) {
+    return (
+      <div className="page">
+        <NavBar user={user} view={view} onChangeView={setView} onLogout={handleLogout} />
+        {status && <div className="status floating">{status}</div>}
+        <div className="grid progress-grid">
+          <section className="panel">
+            <AdminPanel />
           </section>
         </div>
       </div>

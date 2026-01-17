@@ -10,6 +10,7 @@ const { migrate, db, getUserById } = require('./db');
 const { router: calendarRouter, allowedTypes: calendarAllowedTypes } = require('./routes/calendar');
 const { router: progressiveRouter } = require('./routes/progressive');
 const { router: challengesRouter } = require('./routes/challenges');
+const { router: adminRouter } = require('./routes/admin');
 const {
   authRequired,
   createToken,
@@ -557,6 +558,7 @@ app.get('/api/workout-sessions/:id', authRequired, (req, res) => {
 app.use('/api/calendar', calendarRouter);
 app.use('/api', progressiveRouter);
 app.use('/api/challenges', challengesRouter);
+app.use('/api/admin', adminRouter);
 
 // Ensure API errors are returned as JSON (not HTML), so the client can show the real message.
 // Must be registered after routes.

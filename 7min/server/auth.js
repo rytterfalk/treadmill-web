@@ -72,4 +72,5 @@ module.exports = {
   setAuthCookie,
   createUser,
   authenticate,
+  hashPassword,
 };
