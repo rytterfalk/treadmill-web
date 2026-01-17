@@ -2862,15 +2862,22 @@ button.tiny {
 /* Stats inline in header */
 .challenge-card-stats-inline {
   display: flex;
-  align-items: baseline;
-  gap: 0.35rem;
-  font-size: 0.85rem;
-  color: var(--text-secondary);
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #ffc107;
   margin-left: auto;
+  background: linear-gradient(135deg, rgba(255, 193, 7, 0.2), rgba(255, 152, 0, 0.15));
+  border: 1.5px solid rgba(255, 193, 7, 0.4);
+  border-radius: var(--radius-md);
+  padding: 0.4rem 0.75rem;
+  text-shadow: 0 0 8px rgba(255, 193, 7, 0.4);
 }
 
 .challenge-card-stats-inline .stats-separator {
-  opacity: 0.5;
+  opacity: 0.6;
+  color: rgba(255, 193, 7, 0.7);
 }
 
 /* Main action area */
