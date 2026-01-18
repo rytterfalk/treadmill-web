@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Verify database schema for circuit audio features
-DB_PATH="server/db/app.db"
+DB_PATH="server/data/app.db"
 
 echo "🔍 Verifying database schema for circuit audio features..."
 echo ""
