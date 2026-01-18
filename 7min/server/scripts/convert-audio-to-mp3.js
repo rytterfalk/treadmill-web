@@ -12,7 +12,7 @@ const path = require('path');
 const Database = require('better-sqlite3');
 
 const UPLOAD_DIR = path.join(__dirname, '../uploads');
-const DB_PATH = path.join(__dirname, '../data/7min.db');
+const DB_PATH = path.join(__dirname, '../data/app.db');
 
 // Check if ffmpeg is available
 function checkFfmpeg() {
