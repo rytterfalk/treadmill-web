@@ -1,10 +1,49 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+// Audio context for beep sounds (lazy init)
+let audioCtx = null;
+function getAudioContext() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return audioCtx;
+}
+
+// Play a beep sound
+function playBeep(frequency = 800, duration = 0.15, volume = 0.3) {
+  try {
+    const ctx = getAudioContext();
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    oscillator.frequency.value = frequency;
+    oscillator.type = 'sine';
+    gainNode.gain.setValueAtTime(volume, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+    oscillator.start(ctx.currentTime);
+    oscillator.stop(ctx.currentTime + duration);
+  } catch (e) {
+    // Audio not available
+  }
+}
+
+// Short beep for countdown
+function playCountdownBeep() {
+  playBeep(600, 0.1, 0.25);
+}
+
+// Longer beep for GO!
+function playStartBeep() {
+  playBeep(900, 0.3, 0.4);
+}
+
 function CircuitTimer({ program, exercises, onComplete }) {
-  const [phase, setPhase] = useState('ready'); // ready | exercise | rest | done
+  const [phase, setPhase] = useState('ready'); // ready | countdown | exercise | rest | done
   const [currentExerciseIdx, setCurrentExerciseIdx] = useState(0);
   const [round, setRound] = useState(1);
   const [restCountdown, setRestCountdown] = useState(0);
+  const [countdownValue, setCountdownValue] = useState(3); // For initial countdown
   const [exerciseElapsed, setExerciseElapsed] = useState(0);
   const [totalElapsed, setTotalElapsed] = useState(0);
   const [exerciseTimes, setExerciseTimes] = useState([]); // Array of { exercise, round, seconds }
@@ -13,6 +52,7 @@ function CircuitTimer({ program, exercises, onComplete }) {
   const intervalRef = useRef(null);
   const exerciseAudioRef = useRef(null);
   const restAudioRef = useRef(null);
+  const lastBeepRef = useRef(-1); // Track last beeped second to avoid duplicates
 
   const currentExercise = exercises[currentExerciseIdx];
   const restSeconds = program?.rest_seconds || 30;
@@ -21,22 +61,59 @@ function CircuitTimer({ program, exercises, onComplete }) {
   useEffect(() => {
     if (phase === 'ready' || phase === 'done' || isPaused) {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      lastBeepRef.current = -1; // Reset beep tracker
       return;
     }
 
     intervalRef.current = setInterval(() => {
-      setTotalElapsed((t) => t + 1);
-      if (phase === 'exercise') {
-        setExerciseElapsed((t) => t + 1);
-      } else if (phase === 'rest') {
-        setRestCountdown((t) => {
-          if (t <= 1) {
-            // Rest done, move to next exercise
-            goToNextExercise();
-            return 0;
+      if (phase === 'countdown') {
+        setCountdownValue((c) => {
+          const newValue = c - 1;
+
+          // Play countdown beeps at 3, 2, 1
+          if (newValue > 0 && newValue !== lastBeepRef.current) {
+            playCountdownBeep();
+            lastBeepRef.current = newValue;
           }
-          return t - 1;
+
+          if (newValue <= 0) {
+            // Countdown done, play GO beep and start exercise
+            if (lastBeepRef.current !== 0) {
+              playStartBeep();
+              lastBeepRef.current = 0;
+            }
+            setPhase('exercise');
+            setExerciseElapsed(0);
+            return 3; // Reset for next time
+          }
+          return newValue;
         });
+      } else {
+        setTotalElapsed((t) => t + 1);
+        if (phase === 'exercise') {
+          setExerciseElapsed((t) => t + 1);
+        } else if (phase === 'rest') {
+          setRestCountdown((t) => {
+            const newCountdown = t - 1;
+
+            // Play countdown beeps at 3, 2, 1 seconds
+            if (newCountdown <= 3 && newCountdown > 0 && newCountdown !== lastBeepRef.current) {
+              playCountdownBeep();
+              lastBeepRef.current = newCountdown;
+            }
+
+            if (newCountdown <= 0) {
+              // Rest done, play GO beep and move to next exercise
+              if (lastBeepRef.current !== 0) {
+                playStartBeep();
+                lastBeepRef.current = 0;
+              }
+              goToNextExercise();
+              return 0;
+            }
+            return newCountdown;
+          });
+        }
       }
     }, 1000);
 
@@ -47,23 +124,32 @@ function CircuitTimer({ program, exercises, onComplete }) {
   useEffect(() => {
     if (phase === 'exercise' && currentExercise?.audio_url && exerciseAudioRef.current) {
       const audio = exerciseAudioRef.current;
+      audio.src = currentExercise.audio_url;
       audio.load();
-      audio.play().catch((err) => console.log('Audio play failed:', err));
+      // Small delay to ensure audio is loaded
+      setTimeout(() => {
+        audio.play().catch((err) => console.log('Exercise audio play failed:', err));
+      }, 100);
     }
-  }, [phase, currentExerciseIdx]);
+  }, [phase, currentExerciseIdx, currentExercise?.audio_url]);
 
   // Play audio when rest starts
   useEffect(() => {
     if (phase === 'rest' && currentExercise?.rest_audio_url && restAudioRef.current) {
       const audio = restAudioRef.current;
+      audio.src = currentExercise.rest_audio_url;
       audio.load();
-      audio.play().catch((err) => console.log('Rest audio play failed:', err));
+      // Small delay to ensure audio is loaded
+      setTimeout(() => {
+        audio.play().catch((err) => console.log('Rest audio play failed:', err));
+      }, 100);
     }
-  }, [phase, currentExerciseIdx]);
+  }, [phase, currentExerciseIdx, currentExercise?.rest_audio_url]);
 
   function startWorkout() {
-    setPhase('exercise');
-    setExerciseElapsed(0);
+    setPhase('countdown');
+    setCountdownValue(3);
+    lastBeepRef.current = -1;
   }
 
   function markExerciseDone() {
@@ -142,6 +228,18 @@ function CircuitTimer({ program, exercises, onComplete }) {
         <button className="primary large start-btn" onClick={startWorkout}>
           ▶ Starta Circuit
         </button>
+      </div>
+    );
+  }
+
+  if (phase === 'countdown') {
+    return (
+      <div className="circuit-timer countdown-phase">
+        <div className="countdown-display">
+          <p className="phase-label">GÖR DIG REDO</p>
+          <div className="countdown-number">{countdownValue}</div>
+          <p className="next-up">Första övningen: {currentExercise?.title}</p>
+        </div>
       </div>
     );
   }
