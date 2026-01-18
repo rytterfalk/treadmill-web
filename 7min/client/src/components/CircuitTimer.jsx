@@ -167,6 +167,15 @@ function CircuitTimer({ program, exercises, onComplete }) {
     let audioKey = null;
     let audioUrl = null;
 
+    console.log('Audio effect triggered:', {
+      phase,
+      exercisesLength: exercises?.length,
+      firstExercise: exercises[0],
+      hasAudioUrl: !!exercises[0]?.audio_url,
+      currentExerciseIdx,
+      round
+    });
+
     if (phase === 'countdown') {
       // Play intro audio first, then first exercise audio
       if (program?.intro_audio_url && lastAudioPlayedRef.current !== 'intro') {
