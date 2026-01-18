@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const https = require('https');
+const { execFile } = require('child_process');
 const { migrate, db, getUserById } = require('./db');
 const { router: calendarRouter, allowedTypes: calendarAllowedTypes } = require('./routes/calendar');
 const { router: progressiveRouter } = require('./routes/progressive');
@@ -85,27 +86,79 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
 });
 
-app.post('/api/media', authRequired, upload.single('file'), (req, res) => {
+// Convert audio file to MP3 using ffmpeg (for Safari/iOS compatibility)
+function convertToMp3(inputPath, outputPath) {
+  return new Promise((resolve, reject) => {
+    execFile('ffmpeg', [
+      '-i', inputPath,
+      '-y',                    // Overwrite output
+      '-vn',                   // No video
+      '-ar', '44100',          // Sample rate
+      '-ac', '1',              // Mono (smaller file)
+      '-b:a', '128k',          // Bitrate
+      '-f', 'mp3',             // Output format
+      outputPath
+    ], (error, stdout, stderr) => {
+      if (error) {
+        console.error('ffmpeg error:', stderr);
+        reject(error);
+      } else {
+        resolve(outputPath);
+      }
+    });
+  });
+}
+
+app.post('/api/media', authRequired, upload.single('file'), async (req, res) => {
   const { type = 'audio' } = req.body;
   const file = req.file;
   if (!file) return res.status(400).json({ error: 'Fil saknas' });
   if (!['audio', 'image'].includes(type)) {
     return res.status(400).json({ error: 'Ogiltig typ' });
   }
+
+  let finalFilename = file.filename;
+  let finalMime = file.mimetype;
+  let finalSize = file.size;
+
+  // Convert audio files to MP3 for cross-browser compatibility
+  if (type === 'audio' && !file.mimetype.includes('mp3')) {
+    try {
+      const inputPath = path.join(UPLOAD_DIR, file.filename);
+      const mp3Filename = file.filename.replace(/\.[^.]+$/, '.mp3');
+      const outputPath = path.join(UPLOAD_DIR, mp3Filename);
+
+      await convertToMp3(inputPath, outputPath);
+
+      // Delete original file
+      fs.unlinkSync(inputPath);
+
+      // Update file info
+      finalFilename = mp3Filename;
+      finalMime = 'audio/mpeg';
+      finalSize = fs.statSync(outputPath).size;
+
+      console.log(`Converted ${file.filename} -> ${mp3Filename}`);
+    } catch (err) {
+      console.error('Audio conversion failed:', err);
+      // Continue with original file if conversion fails
+    }
+  }
+
   const asset = db
     .prepare(
       `INSERT INTO media_assets (user_id, type, mime, filename, size)
        VALUES (?, ?, ?, ?, ?)`
     )
-    .run(req.user.id, type, file.mimetype, file.filename, file.size);
+    .run(req.user.id, type, finalMime, finalFilename, finalSize);
 
   res.status(201).json({
     asset: {
       id: asset.lastInsertRowid,
       type,
-      mime: file.mimetype,
-      size: file.size,
-      url: `/uploads/${file.filename}`,
+      mime: finalMime,
+      size: finalSize,
+      url: `/uploads/${finalFilename}`,
     },
   });
 });

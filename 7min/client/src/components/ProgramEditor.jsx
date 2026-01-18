@@ -188,15 +188,26 @@ function ProgramEditor({ prefill, onSave }) {
     }
   }
 
-  const preferredMimeTypes = ['audio/mp4;codecs=aac', 'audio/webm;codecs=opus', 'audio/ogg'];
+  const preferredMimeTypes = [
+    'audio/mp4',
+    'audio/mp4;codecs=mp4a.40.2',
+    'audio/webm;codecs=opus',
+    'audio/ogg;codecs=opus',
+    'audio/webm'
+  ];
 
   function pickSupportedMime() {
     if (!window.MediaRecorder || !window.MediaRecorder.isTypeSupported) {
+      console.warn('MediaRecorder.isTypeSupported not available, using default');
       return { mimeType: 'audio/webm' };
     }
     for (const t of preferredMimeTypes) {
-      if (MediaRecorder.isTypeSupported(t)) return { mimeType: t };
+      if (MediaRecorder.isTypeSupported(t)) {
+        console.log(`Using MIME type: ${t}`);
+        return { mimeType: t };
+      }
     }
+    console.warn('No preferred MIME type supported, falling back to audio/webm');
     return { mimeType: 'audio/webm' };
   }
 

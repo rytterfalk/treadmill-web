@@ -82,11 +82,27 @@ function CircuitEditor({ prefill, onSave, onCancel }) {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
       chunksRef.current = [];
-      const recorder = new MediaRecorder(stream);
+
+      // Detect supported audio format (Safari needs mp4, Chrome/Firefox support webm)
+      let mimeType = 'audio/webm';
+      let fileExtension = 'webm';
+
+      if (MediaRecorder.isTypeSupported('audio/mp4')) {
+        mimeType = 'audio/mp4';
+        fileExtension = 'm4a';
+      } else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        mimeType = 'audio/webm;codecs=opus';
+        fileExtension = 'webm';
+      } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+        mimeType = 'audio/webm';
+        fileExtension = 'webm';
+      }
+
+      const recorder = new MediaRecorder(stream, { mimeType });
       recorder.ondataavailable = (e) => chunksRef.current.push(e.data);
       recorder.onstop = async () => {
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
-        await uploadAudio(blob, type, index);
+        const blob = new Blob(chunksRef.current, { type: mimeType });
+        await uploadAudio(blob, type, index, fileExtension);
         stream.getTracks().forEach((t) => t.stop());
       };
       mediaRecorderRef.current = recorder;
@@ -106,9 +122,9 @@ function CircuitEditor({ prefill, onSave, onCancel }) {
     setStatus('Sparar ljud...');
   }
 
-  async function uploadAudio(blob, type, index = null) {
+  async function uploadAudio(blob, type, index = null, fileExtension = 'webm') {
     const formData = new FormData();
-    formData.append('file', blob, 'recording.webm');
+    formData.append('file', blob, `recording.${fileExtension}`);
     formData.append('type', 'audio');
     try {
       const res = await fetch('/api/media', { method: 'POST', body: formData, credentials: 'include' });
