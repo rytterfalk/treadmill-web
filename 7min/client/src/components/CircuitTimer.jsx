@@ -156,36 +156,42 @@ function CircuitTimer({ program, exercises, onComplete }) {
     return () => clearInterval(intervalRef.current);
   }, [phase, isPaused]);
 
-  // Play exercise audio during countdown (for first exercise) or rest (for subsequent exercises)
+  // Play audio during countdown (intro + first exercise) or rest (next exercise)
   // This matches HIIT behavior where audio plays before the exercise starts
   useEffect(() => {
     let audioKey = null;
-    let exerciseToPlay = null;
+    let audioUrl = null;
 
     if (phase === 'countdown') {
-      // Play first exercise audio during initial countdown
-      audioKey = 'countdown-0';
-      exerciseToPlay = exercises[0];
+      // Play intro audio first, then first exercise audio
+      if (program?.intro_audio_url && lastAudioPlayedRef.current !== 'intro') {
+        audioKey = 'intro';
+        audioUrl = program.intro_audio_url;
+      } else if (exercises[0]?.audio_url && lastAudioPlayedRef.current !== 'countdown-0') {
+        audioKey = 'countdown-0';
+        audioUrl = exercises[0].audio_url;
+      }
     } else if (phase === 'rest') {
       // Get the NEXT exercise (the one that will start after this rest)
       const nextIdx = currentExerciseIdx + 1;
-      exerciseToPlay = nextIdx >= exercises.length ? exercises[0] : exercises[nextIdx];
+      const nextExercise = nextIdx >= exercises.length ? exercises[0] : exercises[nextIdx];
       audioKey = `rest-${currentExerciseIdx}-${round}`;
+      audioUrl = nextExercise?.audio_url;
     }
 
-    if (exerciseToPlay?.audio_url && audioKey && lastAudioPlayedRef.current !== audioKey) {
+    if (audioUrl && audioKey && lastAudioPlayedRef.current !== audioKey) {
       try {
         const player = voicePlayerRef.current || new Audio();
-        player.src = exerciseToPlay.audio_url;
+        player.src = audioUrl;
         player.currentTime = 0;
         voicePlayerRef.current = player;
-        player.play().catch((err) => console.log('Exercise audio play failed:', err));
+        player.play().catch((err) => console.log('Audio play failed:', err));
         lastAudioPlayedRef.current = audioKey;
       } catch (err) {
         console.log('Audio playback error:', err);
       }
     }
-  }, [phase, currentExerciseIdx, round, exercises]);
+  }, [phase, currentExerciseIdx, round, exercises, program]);
 
   function startWorkout() {
     // Wake up audio on user gesture (required for iOS/mobile)

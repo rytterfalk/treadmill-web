@@ -33,14 +33,23 @@ router.get('/programs/:id', authRequired, (req, res) => {
   const program = db
     .prepare(
       `SELECT cp.id, cp.user_id, cp.title, cp.description, cp.rest_seconds, cp.is_public, cp.created_at,
+              cp.intro_audio_asset_id,
+              mi.filename AS intro_audio_filename,
               u.name AS owner_name
        FROM circuit_programs cp
        LEFT JOIN users u ON u.id = cp.user_id
+       LEFT JOIN media_assets mi ON mi.id = cp.intro_audio_asset_id
        WHERE cp.id = ?`
     )
     .get(req.params.id);
 
   if (!program) return res.status(404).json({ error: 'Circuit-pass finns inte' });
+
+  // Add intro audio URL
+  const programWithAudio = {
+    ...program,
+    intro_audio_url: program.intro_audio_filename ? `/uploads/${program.intro_audio_filename}` : null,
+  };
 
   const exercises = db
     .prepare(
@@ -56,12 +65,12 @@ router.get('/programs/:id', authRequired, (req, res) => {
     )
     .all(program.id);
 
-  res.json({ program, exercises: withAudioUrls(exercises) });
+  res.json({ program: programWithAudio, exercises: withAudioUrls(exercises) });
 });
 
 // Create circuit program
 router.post('/programs', authRequired, (req, res) => {
-  const { title, description = '', restSeconds = 30, exercises = [], isPublic = false } = req.body;
+  const { title, description = '', restSeconds = 30, exercises = [], isPublic = false, introAudioAssetId = null } = req.body;
   
   if (!title || !Array.isArray(exercises) || exercises.length === 0) {
     return res.status(400).json({ error: 'Titel och minst en övning krävs' });
@@ -70,9 +79,9 @@ router.post('/programs', authRequired, (req, res) => {
   const tx = db.transaction(() => {
     const programId = db
       .prepare(
-        'INSERT INTO circuit_programs (user_id, title, description, rest_seconds, is_public) VALUES (?, ?, ?, ?, ?)'
+        'INSERT INTO circuit_programs (user_id, title, description, rest_seconds, is_public, intro_audio_asset_id) VALUES (?, ?, ?, ?, ?, ?)'
       )
-      .run(req.user.id, title, description, restSeconds, isPublic ? 1 : 0).lastInsertRowid;
+      .run(req.user.id, title, description, restSeconds, isPublic ? 1 : 0, introAudioAssetId).lastInsertRowid;
 
     const insertExercise = db.prepare(
       `INSERT INTO circuit_exercises (circuit_program_id, position, title, reps, notes, audio_asset_id, rest_audio_asset_id)

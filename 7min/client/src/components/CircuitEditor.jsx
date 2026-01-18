@@ -12,6 +12,8 @@ function CircuitEditor({ prefill, onSave, onCancel }) {
   const [restSeconds, setRestSeconds] = useState(30);
   const [isPublic, setIsPublic] = useState(false);
   const [exercises, setExercises] = useState(starterExercises);
+  const [introAudioAssetId, setIntroAudioAssetId] = useState(null);
+  const [introAudioUrl, setIntroAudioUrl] = useState(null);
   const [draggingIdx, setDraggingIdx] = useState(null);
   const [recordingIdx, setRecordingIdx] = useState(null);
   const [status, setStatus] = useState('');
@@ -30,6 +32,8 @@ function CircuitEditor({ prefill, onSave, onCancel }) {
     setDescription(prefill.program?.description || '');
     setRestSeconds(prefill.program?.rest_seconds || 30);
     setIsPublic(!!prefill.program?.is_public);
+    setIntroAudioAssetId(prefill.program?.intro_audio_asset_id || null);
+    setIntroAudioUrl(prefill.program?.intro_audio_url || null);
     setExercises(
       prefill.exercises?.length
         ? prefill.exercises.map((ex) => ({
@@ -73,7 +77,7 @@ function CircuitEditor({ prefill, onSave, onCancel }) {
   }
 
   // Audio recording
-  async function startRecording(type, index) {
+  async function startRecording(type, index = null) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
@@ -87,7 +91,7 @@ function CircuitEditor({ prefill, onSave, onCancel }) {
       };
       mediaRecorderRef.current = recorder;
       recorder.start();
-      setRecordingIdx(`${type}-${index}`);
+      setRecordingIdx(index !== null ? `${type}-${index}` : type);
       setStatus('Spelar in...');
     } catch (err) {
       setStatus('Kunde inte starta inspelning: ' + err.message);
@@ -102,7 +106,7 @@ function CircuitEditor({ prefill, onSave, onCancel }) {
     setStatus('Sparar ljud...');
   }
 
-  async function uploadAudio(blob, type, index) {
+  async function uploadAudio(blob, type, index = null) {
     const formData = new FormData();
     formData.append('file', blob, 'recording.webm');
     formData.append('type', 'audio');
@@ -110,7 +114,10 @@ function CircuitEditor({ prefill, onSave, onCancel }) {
       const res = await fetch('/api/assets', { method: 'POST', body: formData, credentials: 'include' });
       if (!res.ok) throw new Error('Upload failed');
       const data = await res.json();
-      if (type === 'exercise') {
+      if (type === 'intro') {
+        setIntroAudioAssetId(data.asset.id);
+        setIntroAudioUrl(data.asset.url);
+      } else if (type === 'exercise') {
         updateExercise(index, 'audioAssetId', data.asset.id);
         updateExercise(index, 'audioUrl', data.asset.url);
       } else {
@@ -121,6 +128,20 @@ function CircuitEditor({ prefill, onSave, onCancel }) {
     } catch (err) {
       setStatus('Kunde inte ladda upp ljud: ' + err.message);
     }
+  }
+
+  function clearAudio(index, type) {
+    if (type === 'intro') {
+      setIntroAudioAssetId(null);
+      setIntroAudioUrl(null);
+    } else if (type === 'exercise') {
+      updateExercise(index, 'audioAssetId', null);
+      updateExercise(index, 'audioUrl', null);
+    } else {
+      updateExercise(index, 'restAudioAssetId', null);
+      updateExercise(index, 'restAudioUrl', null);
+    }
+    setStatus('Ljud borttaget');
   }
 
   function handleSave() {
@@ -137,6 +158,7 @@ function CircuitEditor({ prefill, onSave, onCancel }) {
       description: description.trim(),
       restSeconds,
       isPublic,
+      introAudioAssetId,
       exercises: exercises.map((ex) => ({
         title: ex.title,
         reps: ex.reps,
@@ -215,6 +237,27 @@ function CircuitEditor({ prefill, onSave, onCancel }) {
         </div>
       </div>
 
+      {/* Intro Audio Section */}
+      <div className="editor-section">
+        <h3>🎙️ Introduktionsljud</h3>
+        <p className="section-hint">Spelas innan träningspasset startar (under nedräkningen)</p>
+        <div className="audio-control">
+          <div className="audio-btns">
+            {recordingIdx === 'intro' ? (
+              <button className="ghost tiny recording" onClick={stopRecording}>⏹ Stoppa</button>
+            ) : (
+              <button className="ghost tiny" onClick={() => startRecording('intro')}>● Spela in</button>
+            )}
+            {introAudioUrl && (
+              <button className="ghost tiny" onClick={() => clearAudio(null, 'intro')}>Rensa</button>
+            )}
+          </div>
+          {introAudioUrl && (
+            <audio src={`${introAudioUrl}?v=${Date.now()}`} controls className="audio-preview" preload="auto" />
+          )}
+        </div>
+      </div>
+
       <div className="exercise-list-header">
         <h3>Övningar</h3>
         <span className="badge">{exercises.length} st • {totalReps} reps/varv</span>
@@ -260,23 +303,37 @@ function CircuitEditor({ prefill, onSave, onCancel }) {
               </div>
               <div className="audio-controls">
                 <div className="audio-control">
-                  <span className="audio-label">🎤 Övningsljud:</span>
-                  {ex.audioUrl ? (
-                    <audio src={ex.audioUrl} controls className="audio-preview" />
-                  ) : recordingIdx === `exercise-${idx}` ? (
-                    <button className="ghost tiny recording" onClick={stopRecording}>⏹ Stoppa</button>
-                  ) : (
-                    <button className="ghost tiny" onClick={() => startRecording('exercise', idx)}>⏺ Spela in</button>
+                  <span className="audio-label">🎤 Förberedelseljud</span>
+                  <span className="audio-hint">(spelas innan övningen)</span>
+                  <div className="audio-btns">
+                    {recordingIdx === `exercise-${idx}` ? (
+                      <button className="ghost tiny recording" onClick={stopRecording}>⏹ Stoppa</button>
+                    ) : (
+                      <button className="ghost tiny" onClick={() => startRecording('exercise', idx)}>● Spela in</button>
+                    )}
+                    {ex.audioUrl && (
+                      <button className="ghost tiny" onClick={() => clearAudio(idx, 'exercise')}>Rensa</button>
+                    )}
+                  </div>
+                  {ex.audioUrl && (
+                    <audio src={`${ex.audioUrl}?v=${Date.now()}`} controls className="audio-preview" preload="auto" />
                   )}
                 </div>
                 <div className="audio-control">
-                  <span className="audio-label">🔔 Pausljud:</span>
-                  {ex.restAudioUrl ? (
-                    <audio src={ex.restAudioUrl} controls className="audio-preview" />
-                  ) : recordingIdx === `rest-${idx}` ? (
-                    <button className="ghost tiny recording" onClick={stopRecording}>⏹ Stoppa</button>
-                  ) : (
-                    <button className="ghost tiny" onClick={() => startRecording('rest', idx)}>⏺ Spela in</button>
+                  <span className="audio-label">🔔 Pausmeddelande</span>
+                  <span className="audio-hint">(spelas under pausen)</span>
+                  <div className="audio-btns">
+                    {recordingIdx === `rest-${idx}` ? (
+                      <button className="ghost tiny recording" onClick={stopRecording}>⏹ Stoppa</button>
+                    ) : (
+                      <button className="ghost tiny" onClick={() => startRecording('rest', idx)}>● Spela in</button>
+                    )}
+                    {ex.restAudioUrl && (
+                      <button className="ghost tiny" onClick={() => clearAudio(idx, 'rest')}>Rensa</button>
+                    )}
+                  </div>
+                  {ex.restAudioUrl && (
+                    <audio src={`${ex.restAudioUrl}?v=${Date.now()}`} controls className="audio-preview" preload="auto" />
                   )}
                 </div>
               </div>
