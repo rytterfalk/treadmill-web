@@ -111,7 +111,7 @@ function CircuitEditor({ prefill, onSave, onCancel }) {
     formData.append('file', blob, 'recording.webm');
     formData.append('type', 'audio');
     try {
-      const res = await fetch('/api/assets', { method: 'POST', body: formData, credentials: 'include' });
+      const res = await fetch('/api/media', { method: 'POST', body: formData, credentials: 'include' });
       if (!res.ok) throw new Error('Upload failed');
       const data = await res.json();
       if (type === 'intro') {
