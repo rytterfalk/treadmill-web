@@ -33,9 +33,13 @@ function wakeAudio() {
 function playBeep(frequency = 800, duration = 0.15, volume = 0.3) {
   try {
     const ctx = getAudioContext();
-    if (!ctx) return;
+    if (!ctx) {
+      console.warn('AudioContext not available');
+      return;
+    }
     if (ctx.state === 'suspended') {
-      ctx.resume().catch(() => {});
+      console.log('Resuming suspended AudioContext...');
+      ctx.resume().catch((err) => console.warn('Failed to resume AudioContext:', err));
     }
     const oscillator = ctx.createOscillator();
     const gainNode = ctx.createGain();
@@ -47,8 +51,9 @@ function playBeep(frequency = 800, duration = 0.15, volume = 0.3) {
     gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
     oscillator.start(ctx.currentTime);
     oscillator.stop(ctx.currentTime + duration);
+    console.log(`Beep played: ${frequency}Hz`);
   } catch (e) {
-    // Audio not available
+    console.error('Beep playback error:', e);
   }
 }
 
@@ -180,27 +185,41 @@ function CircuitTimer({ program, exercises, onComplete }) {
     }
 
     if (audioUrl && audioKey && lastAudioPlayedRef.current !== audioKey) {
+      console.log(`Playing voice audio: ${audioKey}, URL: ${audioUrl}`);
       try {
         const player = voicePlayerRef.current || new Audio();
         player.src = audioUrl;
         player.currentTime = 0;
         voicePlayerRef.current = player;
-        player.play().catch((err) => console.log('Audio play failed:', err));
+
+        player.onloadeddata = () => console.log('Voice audio loaded successfully');
+        player.onerror = (e) => console.error('Voice audio load error:', e);
+
+        player.play()
+          .then(() => console.log('Voice audio playing'))
+          .catch((err) => console.error('Voice audio play failed:', err));
         lastAudioPlayedRef.current = audioKey;
       } catch (err) {
-        console.log('Audio playback error:', err);
+        console.error('Voice audio playback error:', err);
       }
+    } else if (phase === 'countdown' || phase === 'rest') {
+      console.log(`No voice audio to play. Phase: ${phase}, audioUrl: ${audioUrl}, audioKey: ${audioKey}, lastPlayed: ${lastAudioPlayedRef.current}`);
     }
   }, [phase, currentExerciseIdx, round, exercises, program]);
 
   function startWorkout() {
     // Wake up audio on user gesture (required for iOS/mobile)
+    console.log('Starting workout - waking audio...');
     wakeAudio();
+
+    const ctx = getAudioContext();
+    console.log('AudioContext state after wake:', ctx?.state);
 
     setPhase('countdown');
     setCountdownValue(3);
     lastBeepRef.current = -1;
     lastAudioPlayedRef.current = null;
+    console.log('Workout started, phase: countdown');
   }
 
   function markExerciseDone() {

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Circuit Audio Test</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; }
+    button { padding: 10px 20px; margin: 5px; font-size: 16px; cursor: pointer; }
+    .success { color: green; }
+    .error { color: red; }
+    .info { color: blue; }
+    #log { margin-top: 20px; padding: 10px; background: #f5f5f5; border-radius: 4px; }
+    .log-entry { margin: 5px 0; font-family: monospace; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>🔊 Circuit Audio System Test</h1>
+  
+  <h2>1. Test Beep Sounds (AudioContext)</h2>
+  <button onclick="testWakeAudio()">Wake Audio Context</button>
+  <button onclick="testBeep()">Test Beep (800Hz)</button>
+  <button onclick="testCountdownBeep()">Test Countdown Beep</button>
+  <button onclick="testStartBeep()">Test GO Beep</button>
+  <button onclick="testTick()">Test Tick</button>
+  
+  <h2>2. Test Audio Recording</h2>
+  <button onclick="startRecording()">🔴 Start Recording</button>
+  <button onclick="stopRecording()">⏹ Stop Recording</button>
+  <button onclick="playRecording()">▶️ Play Recording</button>
+  
+  <h2>3. Test Audio File Playback</h2>
+  <input type="text" id="audioUrl" placeholder="/uploads/filename.webm" style="width: 300px;">
+  <button onclick="testAudioFile()">Test URL</button>
+  
+  <div id="log">
+    <strong>Log:</strong>
+    <div id="logContent"></div>
+  </div>
+
+  <script>
+    let audioCtx = null;
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    let recordedBlob = null;
+
+    function log(message, type = 'info') {
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      document.getElementById('logContent').prepend(entry);
+    }
+
+    function getAudioContext() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        log('AudioContext created', 'success');
+      }
+      return audioCtx;
+    }
+
+    function testWakeAudio() {
+      try {
+        const ctx = getAudioContext();
+        log(`AudioContext state: ${ctx.state}`, 'info');
+        
+        if (ctx.state === 'suspended') {
+          ctx.resume().then(() => {
+            log('AudioContext resumed', 'success');
+          });
+        }
+        
+        // Play silent tone
+        const oscillator = ctx.createOscillator();
+        const gain = ctx.createGain();
+        gain.gain.value = 0;
+        oscillator.connect(gain).connect(ctx.destination);
+        oscillator.start();
+        oscillator.stop(ctx.currentTime + 0.01);
+        log('Wake audio completed', 'success');
+      } catch (e) {
+        log(`Wake audio failed: ${e.message}`, 'error');
+      }
+    }
+
+    function playBeep(frequency = 800, duration = 0.15, volume = 0.3) {
+      try {
+        const ctx = getAudioContext();
+        log(`Playing beep: ${frequency}Hz, ${duration}s, vol=${volume}`, 'info');
+        
+        if (ctx.state === 'suspended') {
+          ctx.resume();
+        }
+        
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        oscillator.frequency.value = frequency;
+        oscillator.type = 'sine';
+        gainNode.gain.setValueAtTime(volume, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + duration);
+        log('Beep played successfully', 'success');
+      } catch (e) {
+        log(`Beep failed: ${e.message}`, 'error');
+      }
+    }
+
+    function testBeep() { playBeep(800, 0.15, 0.3); }
+    function testCountdownBeep() { playBeep(600, 0.1, 0.25); }
+    function testStartBeep() { playBeep(900, 0.3, 0.4); }
+    function testTick() { playBeep(800, 0.08, 0.06); }
+
+    async function startRecording() {
+      try {
+        log('Requesting microphone access...', 'info');
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        log('Microphone access granted', 'success');
+        
+        recordedChunks = [];
+        mediaRecorder = new MediaRecorder(stream);
+        
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) {
+            recordedChunks.push(e.data);
+            log(`Recorded chunk: ${e.data.size} bytes`, 'info');
+          }
+        };
+        
+        mediaRecorder.onstop = () => {
+          recordedBlob = new Blob(recordedChunks, { type: 'audio/webm' });
+          log(`Recording stopped. Total size: ${recordedBlob.size} bytes`, 'success');
+          stream.getTracks().forEach(t => t.stop());
+        };
+        
+        mediaRecorder.start();
+        log('Recording started...', 'success');
+      } catch (e) {
+        log(`Recording failed: ${e.message}`, 'error');
+      }
+    }
+
+    function stopRecording() {
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+        log('Stopping recording...', 'info');
+      } else {
+        log('No active recording', 'error');
+      }
+    }
+
+    function playRecording() {
+      if (!recordedBlob) {
+        log('No recording available', 'error');
+        return;
+      }
+      
+      try {
+        const url = URL.createObjectURL(recordedBlob);
+        const audio = new Audio(url);
+        audio.play();
+        log(`Playing recording (${recordedBlob.size} bytes)`, 'success');
+      } catch (e) {
+        log(`Playback failed: ${e.message}`, 'error');
+      }
+    }
+
+    function testAudioFile() {
+      const url = document.getElementById('audioUrl').value;
+      if (!url) {
+        log('Enter a URL first', 'error');
+        return;
+      }
+      
+      try {
+        log(`Testing URL: ${url}`, 'info');
+        const audio = new Audio(url);
+        
+        audio.onloadeddata = () => log('Audio loaded successfully', 'success');
+        audio.onerror = (e) => log(`Audio load failed: ${e.message || 'Unknown error'}`, 'error');
+        
+        audio.play()
+          .then(() => log('Audio playing', 'success'))
+          .catch(e => log(`Play failed: ${e.message}`, 'error'));
+      } catch (e) {
+        log(`Test failed: ${e.message}`, 'error');
+      }
+    }
+
+    log('Audio test page loaded', 'success');
+  </script>
+</body>
+</html>
+
