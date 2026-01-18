@@ -9,10 +9,34 @@ function getAudioContext() {
   return audioCtx;
 }
 
+// Wake up AudioContext - must be called from a user gesture (click/touch)
+function wakeAudio() {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+    // Play a silent tone to fully unlock audio on iOS
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    gain.gain.value = 0; // Silent
+    oscillator.connect(gain).connect(ctx.destination);
+    oscillator.start();
+    oscillator.stop(ctx.currentTime + 0.01);
+  } catch {
+    // ignore
+  }
+}
+
 // Play a beep sound
 function playBeep(frequency = 800, duration = 0.15, volume = 0.3) {
   try {
     const ctx = getAudioContext();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
     const oscillator = ctx.createOscillator();
     const gainNode = ctx.createGain();
     oscillator.connect(gainNode);
@@ -38,6 +62,11 @@ function playStartBeep() {
   playBeep(900, 0.3, 0.4);
 }
 
+// Soft tick sound for each second during exercises
+function playTick() {
+  playBeep(800, 0.08, 0.06); // Medium freq, low volume, very short
+}
+
 function CircuitTimer({ program, exercises, onComplete }) {
   const [phase, setPhase] = useState('ready'); // ready | countdown | exercise | rest | done
   const [currentExerciseIdx, setCurrentExerciseIdx] = useState(0);
@@ -50,9 +79,9 @@ function CircuitTimer({ program, exercises, onComplete }) {
   const [isPaused, setIsPaused] = useState(false);
 
   const intervalRef = useRef(null);
-  const exerciseAudioRef = useRef(null);
-  const restAudioRef = useRef(null);
+  const voicePlayerRef = useRef(null); // For playing recorded audio
   const lastBeepRef = useRef(-1); // Track last beeped second to avoid duplicates
+  const lastAudioPlayedRef = useRef(null); // Track which audio was last played
 
   const currentExercise = exercises[currentExerciseIdx];
   const restSeconds = program?.rest_seconds || 30;
@@ -91,7 +120,14 @@ function CircuitTimer({ program, exercises, onComplete }) {
       } else {
         setTotalElapsed((t) => t + 1);
         if (phase === 'exercise') {
-          setExerciseElapsed((t) => t + 1);
+          setExerciseElapsed((t) => {
+            const newElapsed = t + 1;
+            // Play tick sound every second during exercise (but not during last 3 seconds)
+            if (newElapsed > 0) {
+              playTick();
+            }
+            return newElapsed;
+          });
         } else if (phase === 'rest') {
           setRestCountdown((t) => {
             const newCountdown = t - 1;
@@ -120,36 +156,45 @@ function CircuitTimer({ program, exercises, onComplete }) {
     return () => clearInterval(intervalRef.current);
   }, [phase, isPaused]);
 
-  // Play audio when exercise starts
+  // Play exercise audio during countdown (for first exercise) or rest (for subsequent exercises)
+  // This matches HIIT behavior where audio plays before the exercise starts
   useEffect(() => {
-    if (phase === 'exercise' && currentExercise?.audio_url && exerciseAudioRef.current) {
-      const audio = exerciseAudioRef.current;
-      audio.src = currentExercise.audio_url;
-      audio.load();
-      // Small delay to ensure audio is loaded
-      setTimeout(() => {
-        audio.play().catch((err) => console.log('Exercise audio play failed:', err));
-      }, 100);
-    }
-  }, [phase, currentExerciseIdx, currentExercise?.audio_url]);
+    let audioKey = null;
+    let exerciseToPlay = null;
 
-  // Play audio when rest starts
-  useEffect(() => {
-    if (phase === 'rest' && currentExercise?.rest_audio_url && restAudioRef.current) {
-      const audio = restAudioRef.current;
-      audio.src = currentExercise.rest_audio_url;
-      audio.load();
-      // Small delay to ensure audio is loaded
-      setTimeout(() => {
-        audio.play().catch((err) => console.log('Rest audio play failed:', err));
-      }, 100);
+    if (phase === 'countdown') {
+      // Play first exercise audio during initial countdown
+      audioKey = 'countdown-0';
+      exerciseToPlay = exercises[0];
+    } else if (phase === 'rest') {
+      // Get the NEXT exercise (the one that will start after this rest)
+      const nextIdx = currentExerciseIdx + 1;
+      exerciseToPlay = nextIdx >= exercises.length ? exercises[0] : exercises[nextIdx];
+      audioKey = `rest-${currentExerciseIdx}-${round}`;
     }
-  }, [phase, currentExerciseIdx, currentExercise?.rest_audio_url]);
+
+    if (exerciseToPlay?.audio_url && audioKey && lastAudioPlayedRef.current !== audioKey) {
+      try {
+        const player = voicePlayerRef.current || new Audio();
+        player.src = exerciseToPlay.audio_url;
+        player.currentTime = 0;
+        voicePlayerRef.current = player;
+        player.play().catch((err) => console.log('Exercise audio play failed:', err));
+        lastAudioPlayedRef.current = audioKey;
+      } catch (err) {
+        console.log('Audio playback error:', err);
+      }
+    }
+  }, [phase, currentExerciseIdx, round, exercises]);
 
   function startWorkout() {
+    // Wake up audio on user gesture (required for iOS/mobile)
+    wakeAudio();
+
     setPhase('countdown');
     setCountdownValue(3);
     lastBeepRef.current = -1;
+    lastAudioPlayedRef.current = null;
   }
 
   function markExerciseDone() {
@@ -269,20 +314,6 @@ function CircuitTimer({ program, exercises, onComplete }) {
   // Active phase (exercise or rest)
   return (
     <div className={`circuit-timer ${phase}-phase ${isPaused ? 'paused' : ''}`}>
-      {/* Hidden audio elements - always render, update src dynamically */}
-      <audio
-        ref={exerciseAudioRef}
-        src={currentExercise?.audio_url || ''}
-        preload="auto"
-        style={{ display: 'none' }}
-      />
-      <audio
-        ref={restAudioRef}
-        src={currentExercise?.rest_audio_url || ''}
-        preload="auto"
-        style={{ display: 'none' }}
-      />
-
       {/* Stats bar */}
       <div className="circuit-stats-bar">
         <div className="stat-item reps-stat">
