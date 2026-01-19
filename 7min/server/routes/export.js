@@ -7,8 +7,10 @@ const { getDuration, parseDistanceFromText } = require('../lib/duration-estimato
 
 const router = express.Router();
 
-// Default weight if user hasn't set one
+// Constants
 const DEFAULT_WEIGHT_KG = 75;
+const ESTIMATION_VERSION = 'v1';
+const TIME_CORRECTION_THRESHOLD_SEC = 5;
 
 // Helper to get local date string
 function getLocalDateString(date = new Date()) {
@@ -16,6 +18,75 @@ function getLocalDateString(date = new Date()) {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+/**
+ * Normalize any date/time input to ISO8601 UTC with Z suffix
+ * Handles: "2026-01-12 09:00:56", "2026-01-12T09:00:56.123Z", Date objects
+ * @param {string|Date} input - date input
+ * @param {string} fallbackDate - YYYY-MM-DD fallback if input is invalid
+ * @param {string} fallbackTime - HH:MM:SS fallback time
+ * @returns {string} ISO8601 UTC string with Z suffix
+ */
+function normalizeToUTC(input, fallbackDate = null, fallbackTime = '08:00:00') {
+  if (!input) {
+    if (fallbackDate) {
+      return `${fallbackDate}T${fallbackTime}Z`;
+    }
+    return new Date().toISOString();
+  }
+
+  let date;
+  if (input instanceof Date) {
+    date = input;
+  } else if (typeof input === 'string') {
+    // Handle "2026-01-12 09:00:56" format (space instead of T)
+    const normalized = input.replace(' ', 'T');
+    // Add Z if missing and no timezone offset
+    const withZ = normalized.match(/[Z+-]\d{2}:?\d{2}$/) ? normalized : `${normalized}Z`;
+    date = new Date(withZ);
+  } else {
+    date = new Date(input);
+  }
+
+  // Validate the date
+  if (isNaN(date.getTime())) {
+    if (fallbackDate) {
+      return `${fallbackDate}T${fallbackTime}Z`;
+    }
+    return new Date().toISOString();
+  }
+
+  return date.toISOString();
+}
+
+/**
+ * Calculate end_time from start_time + duration, with correction flag
+ * @param {string} startTimeUTC - start time in UTC ISO8601
+ * @param {number} durationSec - duration in seconds
+ * @param {string|null} originalEndTime - original end_time from DB (if any)
+ * @returns {{ endTime: string, timeCorrected: boolean }}
+ */
+function calculateEndTime(startTimeUTC, durationSec, originalEndTime = null) {
+  const startMs = new Date(startTimeUTC).getTime();
+  const calculatedEndMs = startMs + (durationSec * 1000);
+  const calculatedEnd = new Date(calculatedEndMs).toISOString();
+
+  if (!originalEndTime) {
+    return { endTime: calculatedEnd, timeCorrected: false };
+  }
+
+  // Normalize original end time
+  const originalEndUTC = normalizeToUTC(originalEndTime);
+  const originalEndMs = new Date(originalEndUTC).getTime();
+
+  // Check if difference exceeds threshold
+  const diffSec = Math.abs(originalEndMs - calculatedEndMs) / 1000;
+  if (diffSec > TIME_CORRECTION_THRESHOLD_SEC) {
+    return { endTime: calculatedEnd, timeCorrected: true };
+  }
+
+  return { endTime: originalEndUTC, timeCorrected: false };
 }
 
 // Get user weight (with fallback)
@@ -62,12 +133,23 @@ function getWorkoutData(userId, from, to) {
 function enrichChallenge(c, weightKg, weightIsDefault) {
   const title = c.exercise;
   const exerciseTag = normalizeExerciseTag(title);
-  const activityType = exerciseTag ?
-    (exerciseTag.includes('plank') || exerciseTag.includes('hang') ? 'isometric' : 'calisthenics') :
-    normalizeActivityType('other', title);
+
+  // Check for running in challenge title first
+  const lowerTitle = (title || '').toLowerCase();
+  const isRunning = /löp|run|sprint|jogg|km/.test(lowerTitle);
+
+  let activityType;
+  if (isRunning) {
+    activityType = 'running';
+  } else if (exerciseTag) {
+    activityType = exerciseTag.includes('plank') || exerciseTag.includes('hang') ? 'isometric' : 'calisthenics';
+  } else {
+    activityType = normalizeActivityType('other', title);
+  }
+
   const intensity = detectIntensity(title);
 
-  // Duration
+  // Duration - for all-day challenges, use calculated duration based on reps, not wall-clock time
   const durationResult = getDuration({
     is_timed: c.is_timed,
     total_seconds: c.total_seconds,
@@ -80,14 +162,20 @@ function enrichChallenge(c, weightKg, weightIsDefault) {
   const met = getMET(activityType, exerciseTag, intensity);
   const kcal = calculateKcal(met, durationResult.durationSec, weightKg);
 
-  // Start/End times
-  const startTime = c.started_at || `${c.date}T08:00:00.000Z`;
-  const endTime = c.ended_at || new Date(new Date(startTime).getTime() + durationResult.durationSec * 1000).toISOString();
+  // Distance for running challenges
+  const distanceResult = parseDistanceFromText(title);
+  const distanceM = distanceResult?.distanceM || durationResult.distanceM || null;
+
+  // Normalize start time to UTC
+  const startTimeUTC = normalizeToUTC(c.started_at, c.date, '08:00:00');
+
+  // Calculate end time from start + duration (always, to avoid all-day issues)
+  const { endTime, timeCorrected } = calculateEndTime(startTimeUTC, durationResult.durationSec, c.ended_at);
 
   return {
     id: `challenge-${c.id}`,
     date: c.date,
-    start_time: startTime,
+    start_time: startTimeUTC,
     end_time: endTime,
     duration_sec: durationResult.durationSec,
     activity_type: activityType,
@@ -99,9 +187,11 @@ function enrichChallenge(c, weightKg, weightIsDefault) {
     met_value: met,
     kcal_total: weightIsDefault ? null : kcal.kcalTotal,
     kcal_active: weightIsDefault ? null : kcal.kcalActive,
-    distance_m: null,
+    distance_m: distanceM,
     source_estimation: durationResult.isEstimated,
     estimation_method: durationResult.method,
+    time_corrected: timeCorrected,
+    estimation_version: ESTIMATION_VERSION,
     weight_used_kg: weightKg,
     weight_is_default: weightIsDefault,
   };
@@ -110,7 +200,19 @@ function enrichChallenge(c, weightKg, weightIsDefault) {
 // Enrich a workout session with calculated fields
 function enrichWorkout(w, weightKg, weightIsDefault) {
   const title = w.hiit_program_title || w.notes || w.session_type;
-  const activityType = normalizeActivityType(w.session_type, title);
+
+  // Check for running keywords in title/notes to ensure correct activity type
+  const textToCheck = `${title || ''} ${w.notes || ''}`.toLowerCase();
+  const isRunning = /löp|run|sprint|jogg|km|mil/.test(textToCheck);
+
+  // Determine activity type - prioritize running detection
+  let activityType;
+  if (isRunning) {
+    activityType = 'running';
+  } else {
+    activityType = normalizeActivityType(w.session_type, title);
+  }
+
   const exerciseTag = normalizeExerciseTag(title);
   const intensity = detectIntensity(w.notes || title);
 
@@ -121,21 +223,27 @@ function enrichWorkout(w, weightKg, weightIsDefault) {
     title: title,
   });
 
-  // Distance (for running/cycling)
-  const distanceResult = parseDistanceFromText(w.notes || title);
+  // Distance (for running/cycling) - check both title and notes
+  let distanceResult = parseDistanceFromText(title);
+  if (!distanceResult?.distanceM && w.notes) {
+    distanceResult = parseDistanceFromText(w.notes);
+  }
+  const distanceM = distanceResult?.distanceM || durationResult.distanceM || null;
 
   // MET & Calories
   const met = getMET(activityType, exerciseTag, intensity);
   const kcal = calculateKcal(met, durationResult.durationSec, weightKg);
 
-  // Start/End times
-  const startTime = w.started_at || w.created_at || `${w.date}T08:00:00.000Z`;
-  const endTime = w.ended_at || new Date(new Date(startTime).getTime() + durationResult.durationSec * 1000).toISOString();
+  // Normalize start time to UTC
+  const startTimeUTC = normalizeToUTC(w.started_at || w.created_at, w.date, '08:00:00');
+
+  // Calculate end time from start + duration (always)
+  const { endTime, timeCorrected } = calculateEndTime(startTimeUTC, durationResult.durationSec, w.ended_at);
 
   return {
     id: `workout-${w.id}`,
     date: w.date,
-    start_time: startTime,
+    start_time: startTimeUTC,
     end_time: endTime,
     duration_sec: durationResult.durationSec,
     activity_type: activityType,
@@ -147,9 +255,11 @@ function enrichWorkout(w, weightKg, weightIsDefault) {
     met_value: met,
     kcal_total: weightIsDefault ? null : kcal.kcalTotal,
     kcal_active: weightIsDefault ? null : kcal.kcalActive,
-    distance_m: distanceResult?.distanceM || durationResult.distanceM || null,
+    distance_m: distanceM,
     source_estimation: durationResult.isEstimated,
     estimation_method: durationResult.method,
+    time_corrected: timeCorrected,
+    estimation_version: ESTIMATION_VERSION,
     weight_used_kg: weightKg,
     weight_is_default: weightIsDefault,
   };
@@ -172,6 +282,7 @@ function getEnrichedData(userId, from, to) {
       to,
       weight_kg: weightKg,
       weight_is_default: weightIsDefault,
+      estimation_version: ESTIMATION_VERSION,
       exported_at: new Date().toISOString(),
     },
   };
@@ -219,7 +330,7 @@ function generateCSV(enrichedData) {
   const headers = [
     'Datum', 'Starttid', 'Sluttid', 'Duration (sek)', 'Aktivitetstyp', 'Övning/Titel',
     'Reps', 'Set', 'Distans (m)', 'MET', 'kcal Total', 'kcal Aktiv',
-    'Intensitet', 'Estimerad', 'Estimeringsmetod'
+    'Intensitet', 'Estimerad', 'Estimeringsmetod', 'TidKorrigerad', 'Version'
   ].join(',');
 
   const rows = sessions.map(s => [
@@ -233,11 +344,13 @@ function generateCSV(enrichedData) {
     s.sets || '',
     s.distance_m || '',
     s.met_value,
-    s.kcal_total || '',
-    s.kcal_active || '',
+    s.kcal_total !== null ? Math.round(s.kcal_total) : '',
+    s.kcal_active !== null ? Math.round(s.kcal_active) : '',
     s.intensity,
     s.source_estimation ? 'Ja' : 'Nej',
     s.estimation_method,
+    s.time_corrected ? 'Ja' : 'Nej',
+    s.estimation_version,
   ].join(','));
 
   return [headers, ...rows].join('\n');
