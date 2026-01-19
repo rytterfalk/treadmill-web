@@ -288,34 +288,85 @@ function getEnrichedData(userId, from, to) {
   };
 }
 
+/**
+ * Ensure unique start times for TCX export
+ * If two sessions have the same start_time, add +1 second to the later one
+ * @param {Array} sessions - sorted sessions array
+ * @returns {Array} sessions with unique export_start_time and export_end_time
+ */
+function ensureUniqueStartTimes(sessions) {
+  const usedTimes = new Set();
+
+  return sessions.map(s => {
+    let startMs = new Date(s.start_time).getTime();
+    let startIso = new Date(startMs).toISOString();
+
+    // Keep adding 1 second until we find a unique time
+    while (usedTimes.has(startIso)) {
+      startMs += 1000; // +1 second
+      startIso = new Date(startMs).toISOString();
+    }
+
+    usedTimes.add(startIso);
+
+    // Calculate new end time based on adjusted start
+    const endMs = startMs + (s.duration_sec * 1000);
+    const endIso = new Date(endMs).toISOString();
+
+    // Check if we adjusted the time
+    const wasAdjusted = startIso !== s.start_time;
+
+    return {
+      ...s,
+      export_start_time: startIso,
+      export_end_time: endIso,
+      original_start_time: wasAdjusted ? s.start_time : null,
+      start_time_adjusted: wasAdjusted,
+    };
+  });
+}
+
 // Generate TCX XML from enriched data
 function generateTCX(enrichedData) {
   const { sessions, meta } = enrichedData;
 
+  // Ensure unique Activity IDs
+  const uniqueSessions = ensureUniqueStartTimes(sessions);
+
   let activities = '';
 
-  for (const s of sessions) {
+  for (const s of uniqueSessions) {
     const calories = s.kcal_active ? Math.round(s.kcal_active) : 0;
-    const sport = s.activity_type === 'running' ? 'Running' :
-                  s.activity_type === 'hiit' ? 'Other' : 'Other';
+    const sport = s.activity_type === 'running' ? 'Running' : 'Other';
+
+    // Use export times (potentially adjusted for uniqueness)
+    const activityId = s.export_start_time;
+    const lapStart = s.export_start_time;
 
     // Escape XML special chars
-    const notes = (s.title || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    let notes = (s.title || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    if (s.reps) {
+      notes += ` (${s.reps} reps, ${s.sets} set)`;
+    }
+    // Include original time in notes if adjusted
+    if (s.start_time_adjusted && s.original_start_time) {
+      notes += ` [orig: ${s.original_start_time}]`;
+    }
 
     activities += `
     <Activity Sport="${sport}">
-      <Id>${s.start_time}</Id>
-      <Lap StartTime="${s.start_time}">
+      <Id>${activityId}</Id>
+      <Lap StartTime="${lapStart}">
         <TotalTimeSeconds>${s.duration_sec}</TotalTimeSeconds>
         <DistanceMeters>${s.distance_m || 0}</DistanceMeters>
         <Calories>${calories}</Calories>
         <Intensity>Active</Intensity>
         <TriggerMethod>Manual</TriggerMethod>
       </Lap>
-      <Notes>${notes}${s.reps ? ` (${s.reps} reps, ${s.sets} set)` : ''}</Notes>
+      <Notes>${notes}</Notes>
     </Activity>`;
   }
-  
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2">
   <Activities>${activities}
