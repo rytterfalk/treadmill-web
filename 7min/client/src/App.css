@@ -2845,6 +2845,37 @@ button.tiny {
   opacity: 0.8;
 }
 
+/* Export buttons */
+.export-buttons {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--border);
+}
+
+.export-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  transition: all 0.15s;
+}
+
+.export-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(247, 199, 43, 0.1);
+}
+
 /* ═══════════════════════════════════════════════════════════
    TIMED CHALLENGES - Full-width cards and timer overlay
    ═══════════════════════════════════════════════════════════ */

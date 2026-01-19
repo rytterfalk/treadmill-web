@@ -13,6 +13,7 @@ const { router: progressiveRouter } = require('./routes/progressive');
 const { router: challengesRouter } = require('./routes/challenges');
 const { router: adminRouter } = require('./routes/admin');
 const { router: circuitRouter } = require('./routes/circuit');
+const { router: exportRouter } = require('./routes/export');
 const {
   authRequired,
   createToken,
@@ -712,6 +713,7 @@ app.use('/api', progressiveRouter);
 app.use('/api/challenges', challengesRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/circuit', circuitRouter);
+app.use('/api/export', exportRouter);
 
 // Ensure API errors are returned as JSON (not HTML), so the client can show the real message.
 // Must be registered after routes.

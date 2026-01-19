@@ -769,6 +769,25 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
               ))}
             </div>
           )}
+          {/* Export buttons */}
+          {showLeaderboard && (
+            <div className="export-buttons">
+              <a
+                href="/api/export/tcx"
+                className="ghost small export-btn"
+                download
+              >
+                📤 Exportera TCX (Strava)
+              </a>
+              <a
+                href="/api/export/csv"
+                className="ghost small export-btn"
+                download
+              >
+                📊 Exportera CSV
+              </a>
+            </div>
+          )}
         </div>
       )}
 
