@@ -16,6 +16,7 @@ import DailyChallenge from './components/DailyChallenge';
 import AdminPanel from './components/AdminPanel';
 import CircuitEditor from './components/CircuitEditor';
 import CircuitTimer from './components/CircuitTimer';
+import ProfileSettings from './components/ProfileSettings';
 
 const defaultExercises = [
   { title: 'Jumping Jacks', durationSeconds: 30, restSeconds: 5, notes: '' },
@@ -1587,6 +1588,21 @@ function App() {
         <div className="grid progress-grid">
           <section className="panel">
             <EquipmentSelector allEquipment={allEquipment} selected={equipmentSlugs} onSave={handleSaveEquipment} />
+          </section>
+        </div>
+      </div>
+    );
+  }
+
+  // SETTINGS VIEW
+  if (view === 'settings') {
+    return (
+      <div className="page">
+        <NavBar user={user} view={view} onChangeView={setView} onLogout={handleLogout} />
+        {status && <div className="status floating">{status}</div>}
+        <div className="grid progress-grid">
+          <section className="panel">
+            <ProfileSettings user={user} onUpdate={setUser} />
           </section>
         </div>
       </div>

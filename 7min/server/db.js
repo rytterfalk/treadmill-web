@@ -88,7 +88,7 @@ function migrate() {
 
 function getUserById(id) {
   return db
-    .prepare('SELECT id, name, email, is_admin, created_at FROM users WHERE id = ?')
+    .prepare('SELECT id, name, email, is_admin, weight_kg, height_cm, birth_year, sex, created_at FROM users WHERE id = ?')
     .get(id);
 }
 

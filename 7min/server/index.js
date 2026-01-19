@@ -237,6 +237,37 @@ app.put('/api/me/equipment', authRequired, (req, res) => {
   res.json({ ok: true });
 });
 
+// Update user profile (weight, height, etc.)
+app.put('/api/me/profile', authRequired, (req, res) => {
+  const { weight_kg, height_cm, birth_year, sex } = req.body;
+
+  // Validate
+  if (weight_kg !== undefined && (typeof weight_kg !== 'number' || weight_kg < 20 || weight_kg > 300)) {
+    return res.status(400).json({ error: 'Vikt måste vara mellan 20-300 kg' });
+  }
+  if (height_cm !== undefined && (typeof height_cm !== 'number' || height_cm < 100 || height_cm > 250)) {
+    return res.status(400).json({ error: 'Längd måste vara mellan 100-250 cm' });
+  }
+  if (birth_year !== undefined && (typeof birth_year !== 'number' || birth_year < 1900 || birth_year > new Date().getFullYear())) {
+    return res.status(400).json({ error: 'Ogiltigt födelseår' });
+  }
+  if (sex !== undefined && !['male', 'female', 'other', null].includes(sex)) {
+    return res.status(400).json({ error: 'Ogiltigt kön' });
+  }
+
+  db.prepare(`
+    UPDATE users
+    SET weight_kg = COALESCE(?, weight_kg),
+        height_cm = COALESCE(?, height_cm),
+        birth_year = COALESCE(?, birth_year),
+        sex = COALESCE(?, sex)
+    WHERE id = ?
+  `).run(weight_kg, height_cm, birth_year, sex, req.user.id);
+
+  const updatedUser = getUserById(req.user.id);
+  res.json({ user: updatedUser });
+});
+
 app.get('/api/programs', (req, res) => {
   const token = req.cookies.auth_token;
   let userId = null;

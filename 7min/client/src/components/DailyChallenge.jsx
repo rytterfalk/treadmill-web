@@ -777,14 +777,21 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
                 className="ghost small export-btn"
                 download
               >
-                📤 Exportera TCX (Strava)
+                📤 TCX (Strava)
+              </a>
+              <a
+                href="/api/export/json"
+                className="ghost small export-btn"
+                download
+              >
+                🔧 JSON
               </a>
               <a
                 href="/api/export/csv"
                 className="ghost small export-btn"
                 download
               >
-                📊 Exportera CSV
+                📊 CSV
               </a>
             </div>
           )}

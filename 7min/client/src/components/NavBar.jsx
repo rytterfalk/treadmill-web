@@ -74,6 +74,12 @@ function NavBar({ user, view, onChangeView, onLogout }) {
           >
             Utrustning
           </button>
+          <button
+            className={view === 'settings' ? 'menu-item active' : 'menu-item'}
+            onClick={() => handleNavClick('settings')}
+          >
+            Inställningar
+          </button>
           {user.is_admin === 1 && (
             <button
               className={view === 'admin' ? 'menu-item active' : 'menu-item'}
