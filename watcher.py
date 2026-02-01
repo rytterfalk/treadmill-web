@@ -264,20 +264,40 @@ async def main_loop():
                 # update history and check thresholds/records
                 prev_best = max((v.get("reps", 0) for k, v in history.items()), default=0)
                 today_hist = history.get(today, {"reps": 0, "minutes": 0})
+                prev_reps = today_hist.get("reps", 0)
+
                 # if increased since last check
-                if total_reps_today != today_hist.get("reps") or total_minutes_today != today_hist.get("minutes"):
+                if total_reps_today != prev_reps or total_minutes_today != today_hist.get("minutes"):
                     history[today] = {"reps": total_reps_today, "minutes": total_minutes_today}
                     save_history(history)
-                    # celebrate if crossing PUSH_THRESHOLD
-                    if total_reps_today >= PUSH_THRESHOLD and (today_hist.get("reps", 0) < PUSH_THRESHOLD):
-                        await bot.send_message(chat_id=CHAT, text=f"Wow — du har nått {total_reps_today} reps idag! Sjukt bra jobbat! 🎉")
-                    # check for new record
+
+                    # Check milestones: 50, 100, 150, 200, 300, 400, 500, 750, 1000, 1500, 2000...
+                    milestones = [50, 100, 150, 200, 300, 400, 500, 750, 1000, 1500, 2000, 3000, 5000]
+                    milestone_messages = {
+                        50: "50 reps! Bra start! 👊",
+                        100: "100 reps! Nu är du igång! 💪",
+                        150: "150 reps! Fortsätt så! 🔥",
+                        200: "200 reps! Starkt jobbat! 💪🔥",
+                        300: "300 reps! Du är en maskin! 🤖",
+                        400: "400 reps! Imponerande! 🌟",
+                        500: "500 reps! Halvtusen — sjukt bra! 🎉",
+                        750: "750 reps! Tre fjärdedelar till tusen! 🚀",
+                        1000: "1000 REPS! TUSEN! Du är en legend! 🏆🎉🔥",
+                        1500: "1500 reps! Helt otroligt! 🦸",
+                        2000: "2000 reps! Dubbeltusen — du är galen (på bästa sätt)! 🤯",
+                        3000: "3000 reps! Vad händer?! Monster-dag! 👹",
+                        5000: "5000 reps! Okej nu överdriver du... RESPEKT! 🙇",
+                    }
+
+                    for milestone in milestones:
+                        if prev_reps < milestone <= total_reps_today:
+                            msg = milestone_messages.get(milestone, f"{milestone} reps! Bra jobbat! 💪")
+                            await bot.send_message(chat_id=CHAT, text=msg)
+                            break  # Only send one milestone message per check
+
+                    # check for new record (only if we have history)
                     if total_reps_today > prev_best and prev_best > 0:
-                        await bot.send_message(chat_id=CHAT, text=f"Ny daglig rekord! {total_reps_today} reps (tidigare bäst {prev_best}). Heja! 🏆")
-                    else:
-                        # if close to record (>= 90%)
-                        if prev_best > 0 and total_reps_today >= int(prev_best * 0.9) and total_reps_today < prev_best:
-                            await bot.send_message(chat_id=CHAT, text=f"Snart rekord! Du är uppe i {total_reps_today} reps — bara {prev_best - total_reps_today} kvar till din bästa dag ({prev_best}). 🚀")
+                        await bot.send_message(chat_id=CHAT, text=f"🏆 Ny daglig rekord! {total_reps_today} reps (tidigare bäst {prev_best}). Heja!")
 
                 # 3) days since last session (check ALL sources: workout_sessions, progressive_program_days, circuit_sessions)
                 days = 999
