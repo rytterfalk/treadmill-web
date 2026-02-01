@@ -37,6 +37,13 @@ Du har tillgång till verktyg (functions) som du kan använda:
 - log_run: Logga ett löppass till databasen
 - show_workouts: Visa senaste träningspassen
 - run_shell_command: Köra shell-kommandon på Pi3
+- query_database: Köra SQL-frågor mot träningsdatabasen
+
+VIKTIGT för query_database:
+- Utforska ALLTID först med "SELECT * FROM workout_sessions LIMIT 3" för att se strukturen
+- Kolumnen treadmill_state_json innehåller JSON med data som pushups, distance_km etc
+- Använd json_extract(treadmill_state_json, '$.pushups') för att hämta JSON-värden
+- Var nyfiken! Prova olika frågor för att hitta svaret.
 
 När användaren skickar en bild på ett träningspass, analysera bilden och använd log_run för att spara det.
 Fråga om bekräftelse innan du loggar om du är osäker på värdena.
@@ -107,7 +114,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "query_database",
-            "description": "Kör en SQL-fråga mot träningsdatabasen (app.db). Tabeller: workout_sessions (id, user_id, session_type, started_at, ended_at, duration_sec, notes, treadmill_state_json), circuit_sessions (id, user_id, title, rounds_completed, total_seconds). session_type kan vara: hiit, strength, run, mobility, treadmill, circuit, progressive.",
+            "description": "Kör SQL mot träningsdatabasen. UTFORSKA ALLTID med SELECT * LIMIT 3 först för att se strukturen! Tabeller: workout_sessions (id, session_type, started_at, duration_sec, notes, treadmill_state_json). treadmill_state_json innehåller JSON med t.ex. {\"pushups\": 50, \"distance_km\": 5.2}. Använd json_extract(treadmill_state_json, '$.pushups') för att hämta värden. session_type: hiit, strength, run, mobility, treadmill, circuit, progressive.",
             "parameters": {
                 "type": "object",
                 "properties": {
