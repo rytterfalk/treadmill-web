@@ -1,59 +1,50 @@
 #!/bin/bash
 # Lena Setup Script för Raspberry Pi 3
 # Bengts lillasyster 🦞
+# Körs från ~/treadmill-web/
 
 set -e
 
-echo "🦞 Installerar Lena på Pi3..."
+DIR="$HOME/treadmill-web"
+cd "$DIR"
 
-# Skapa katalog
-mkdir -p ~/lena
-cd ~/lena
+echo "🦞 Installerar Lena i $DIR..."
 
-# Skapa virtual environment
-echo "📦 Skapar Python venv..."
-python3 -m venv venv
-source venv/bin/activate
-
-# Installera dependencies
-echo "📦 Installerar paket..."
-pip install --upgrade pip
-pip install python-telegram-bot==20.6 python-dotenv openai
-
-# Skapa .env-fil om den inte finns
-if [ ! -f .env ]; then
-    cat > .env << 'EOF'
-# Lenas Telegram Bot Token (från @BotFather)
-LENA_TELEGRAM_TOKEN=
-
-# OpenAI API-nyckel
-OPENAI_API_KEY=
-
-# Ditt chat ID (samma som för Bengt)
-TARGET_CHAT_ID=
-EOF
-    echo "📝 Skapade .env - fyll i dina nycklar!"
+# Skapa venv om den inte finns
+if [ ! -d venv ]; then
+    echo "📦 Skapar Python venv..."
+    python3 -m venv venv
 fi
 
-# Kopiera lena.py om den finns i samma katalog
-if [ -f ~/lena.py ]; then
-    cp ~/lena.py ~/lena/lena.py
-    echo "✅ Kopierade lena.py"
+source venv/bin/activate
+
+# Installera dependencies (lägger till openai om det saknas)
+echo "📦 Installerar paket..."
+pip install --upgrade pip
+pip install python-telegram-bot==20.6 python-dotenv openai aiosqlite
+
+# Lägg till Lena-variabler i .env om de saknas
+if ! grep -q "LENA_TELEGRAM_TOKEN" .env 2>/dev/null; then
+    echo "" >> .env
+    echo "# === LENA ===" >> .env
+    echo "LENA_TELEGRAM_TOKEN=" >> .env
+    echo "OPENAI_API_KEY=" >> .env
+    echo "📝 Lade till LENA_TELEGRAM_TOKEN och OPENAI_API_KEY i .env"
 fi
 
 # Skapa systemd service
 echo "⚙️ Skapar systemd service..."
 mkdir -p ~/.config/systemd/user
 
-cat > ~/.config/systemd/user/lena.service << 'EOF'
+cat > ~/.config/systemd/user/lena.service << EOF
 [Unit]
 Description=Lena - AI Assistant (Bengts lillasyster)
 After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/pi/lena
-ExecStart=/home/pi/lena/venv/bin/python /home/pi/lena/lena.py
+WorkingDirectory=$DIR
+ExecStart=$DIR/venv/bin/python $DIR/lena.py
 Restart=on-failure
 RestartSec=30
 Environment=PYTHONUNBUFFERED=1
@@ -62,24 +53,17 @@ Environment=PYTHONUNBUFFERED=1
 WantedBy=default.target
 EOF
 
-# Uppdatera sökvägar om användaren inte är "pi"
-USER=$(whoami)
-if [ "$USER" != "pi" ]; then
-    sed -i "s|/home/pi|/home/$USER|g" ~/.config/systemd/user/lena.service
-fi
-
 systemctl --user daemon-reload
 
 echo ""
 echo "✅ Lena är installerad!"
 echo ""
 echo "📋 Nästa steg:"
-echo "1. Redigera ~/lena/.env och fyll i:"
-echo "   - LENA_TELEGRAM_TOKEN (från @BotFather)"
-echo "   - OPENAI_API_KEY"
-echo "   - TARGET_CHAT_ID (ditt chat-id)"
+echo "1. Skapa Telegram-bot för Lena via @BotFather"
 echo ""
-echo "2. Kopiera lena.py till ~/lena/"
+echo "2. Redigera $DIR/.env och fyll i:"
+echo "   LENA_TELEGRAM_TOKEN=<från BotFather>"
+echo "   OPENAI_API_KEY=<din nyckel>"
 echo ""
 echo "3. Starta Lena:"
 echo "   systemctl --user enable --now lena"
