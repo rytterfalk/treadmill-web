@@ -102,6 +102,23 @@ TOOLS = [
                 "required": ["command"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "query_database",
+            "description": "Kör en SQL-fråga mot träningsdatabasen (app.db). Tabeller: workout_sessions (id, user_id, session_type, started_at, ended_at, duration_sec, notes, treadmill_state_json), circuit_sessions (id, user_id, title, rounds_completed, total_seconds). session_type kan vara: hiit, strength, run, mobility, treadmill, circuit, progressive.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "sql": {
+                        "type": "string",
+                        "description": "SQL SELECT-fråga att köra, t.ex. 'SELECT session_type, COUNT(*) FROM workout_sessions GROUP BY session_type'"
+                    }
+                },
+                "required": ["sql"]
+            }
+        }
     }
 ]
 
@@ -212,6 +229,35 @@ async def get_recent_workouts(limit: int = 5) -> str:
         return f"❌ Fel vid läsning: {e}"
 
 
+async def query_database(sql: str) -> str:
+    """Kör en SQL-fråga mot databasen (endast SELECT)."""
+    # Säkerhetskoll - bara SELECT
+    if not sql.strip().upper().startswith("SELECT"):
+        return "❌ Endast SELECT-frågor är tillåtna."
+
+    try:
+        async with aiosqlite.connect(DBPATH) as db:
+            async with db.execute(sql) as cur:
+                rows = await cur.fetchall()
+                columns = [desc[0] for desc in cur.description]
+
+                if not rows:
+                    return "Inga resultat."
+
+                # Formatera som tabell
+                result = "| " + " | ".join(columns) + " |\n"
+                result += "|" + "|".join(["---"] * len(columns)) + "|\n"
+                for row in rows[:20]:  # Max 20 rader
+                    result += "| " + " | ".join(str(v)[:30] for v in row) + " |\n"
+
+                if len(rows) > 20:
+                    result += f"\n... och {len(rows) - 20} fler rader"
+
+                return result
+    except Exception as e:
+        return f"❌ SQL-fel: {e}"
+
+
 async def execute_function(name: str, args: dict) -> str:
     """Kör en function och returnera resultatet."""
     if name == "log_run":
@@ -225,6 +271,8 @@ async def execute_function(name: str, args: dict) -> str:
     elif name == "run_shell_command":
         cmd = args.get("command", "")
         return f"🔧 Kör: {cmd}\n\n```\n{run_command(cmd)}\n```"
+    elif name == "query_database":
+        return await query_database(args.get("sql", ""))
     else:
         return f"❌ Okänd funktion: {name}"
 
