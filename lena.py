@@ -347,7 +347,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     memory["last_interaction"] = datetime.now().isoformat()
     save_memory(memory)
 
-    await update.message.reply_text(response, parse_mode="Markdown")
+    # Försök med Markdown, falla tillbaka till vanlig text om det misslyckas
+    try:
+        await update.message.reply_text(response, parse_mode="Markdown")
+    except Exception:
+        await update.message.reply_text(response)
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -383,7 +387,11 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
 
     response = await chat_with_tools(messages)
-    await update.message.reply_text(response, parse_mode="Markdown")
+    # Försök med Markdown, falla tillbaka till vanlig text om det misslyckas
+    try:
+        await update.message.reply_text(response, parse_mode="Markdown")
+    except Exception:
+        await update.message.reply_text(response)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
