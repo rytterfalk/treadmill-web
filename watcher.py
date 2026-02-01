@@ -279,21 +279,54 @@ async def main_loop():
                         if prev_best > 0 and total_reps_today >= int(prev_best * 0.9) and total_reps_today < prev_best:
                             await bot.send_message(chat_id=CHAT, text=f"Snart rekord! Du är uppe i {total_reps_today} reps — bara {prev_best - total_reps_today} kvar till din bästa dag ({prev_best}). 🚀")
 
-                # 3) days since last session (using workout_sessions newest)
+                # 3) days since last session (check ALL sources: workout_sessions, progressive_program_days, circuit_sessions)
+                days = 999
+
+                # Check workout_sessions
                 async with db.execute(
                     "SELECT COALESCE(started_at, created_at) FROM workout_sessions "
                     "WHERE user_id = ? ORDER BY COALESCE(started_at, created_at) DESC LIMIT 1",
                     (userid,)
                 ) as cur:
                     row = await cur.fetchone()
-                    days = 999
                     if row and row[0]:
                         try:
                             last_dt = datetime.fromisoformat(row[0])
-                            days = (date.today() - last_dt.date()).days
+                            days = min(days, (date.today() - last_dt.date()).days)
                         except:
-                            days = 999
-                    if days >= DAYS_NO_TRAINING:
+                            pass
+
+                # Check progressive_program_days (where you actually train!)
+                async with db.execute(
+                    "SELECT date FROM progressive_program_days ppd "
+                    "JOIN progressive_programs pp ON pp.id = ppd.program_id "
+                    "WHERE pp.user_id = ? AND ppd.status = 'done' "
+                    "ORDER BY ppd.date DESC LIMIT 1",
+                    (userid,)
+                ) as cur:
+                    row = await cur.fetchone()
+                    if row and row[0]:
+                        try:
+                            last_date = date.fromisoformat(row[0])
+                            days = min(days, (date.today() - last_date).days)
+                        except:
+                            pass
+
+                # Check circuit_sessions
+                async with db.execute(
+                    "SELECT completed_at FROM circuit_sessions "
+                    "WHERE user_id = ? ORDER BY completed_at DESC LIMIT 1",
+                    (userid,)
+                ) as cur:
+                    row = await cur.fetchone()
+                    if row and row[0]:
+                        try:
+                            last_dt = datetime.fromisoformat(row[0])
+                            days = min(days, (date.today() - last_dt.date()).days)
+                        except:
+                            pass
+
+                if days >= DAYS_NO_TRAINING:
                         # send gentle nudge (but only once per threshold; check state timestamp)
                         last_warn = state.get("last_no_training_warn")
                         if not last_warn or (datetime.fromisoformat(last_warn) < datetime.utcnow() - timedelta(days=DAYS_NO_TRAINING)):
