@@ -40,10 +40,11 @@ Du har tillgång till verktyg (functions) som du kan använda:
 - query_database: Köra SQL-frågor mot träningsdatabasen
 
 VIKTIGT för query_database:
-- Utforska ALLTID först med "SELECT * FROM workout_sessions LIMIT 3" för att se strukturen
-- Kolumnen treadmill_state_json innehåller JSON med data som pushups, distance_km etc
-- Använd json_extract(treadmill_state_json, '$.pushups') för att hämta JSON-värden
-- Var nyfiken! Prova olika frågor för att hitta svaret.
+- ARMHÄVNINGAR finns i tabellen progressive_program_days, kolumn result_json
+- result_json har struktur: {"sets":[{"actual_reps":21},{"actual_reps":21},...]}
+- För att summera armhävningar: SELECT SUM(json_extract(value, '$.actual_reps')) FROM progressive_program_days, json_each(json_extract(result_json, '$.sets')) WHERE result_json IS NOT NULL
+- workout_sessions innehåller session_type (hiit/strength/run), started_at, duration_sec
+- Var nyfiken! Utforska med SELECT * FROM tabellnamn LIMIT 3
 
 När användaren skickar en bild på ett träningspass, analysera bilden och använd log_run för att spara det.
 Fråga om bekräftelse innan du loggar om du är osäker på värdena.
@@ -114,7 +115,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "query_database",
-            "description": "Kör SQL mot träningsdatabasen. UTFORSKA ALLTID med SELECT * LIMIT 3 först för att se strukturen! Tabeller: workout_sessions (id, session_type, started_at, duration_sec, notes, treadmill_state_json). treadmill_state_json innehåller JSON med t.ex. {\"pushups\": 50, \"distance_km\": 5.2}. Använd json_extract(treadmill_state_json, '$.pushups') för att hämta värden. session_type: hiit, strength, run, mobility, treadmill, circuit, progressive.",
+            "description": "Kör SQL mot träningsdatabasen. VIKTIGA TABELLER: 1) progressive_program_days - innehåller armhävningar i result_json med struktur {\"sets\":[{\"actual_reps\":21},...]}. Summera med: SELECT SUM(json_extract(value, '$.actual_reps')) FROM progressive_program_days, json_each(json_extract(result_json, '$.sets')) WHERE result_json IS NOT NULL. 2) workout_sessions - session_type (hiit/strength/run/progressive), started_at, duration_sec. 3) circuit_sessions - exercise_times JSON. Utforska med SELECT * FROM tabellnamn LIMIT 3 för att se strukturen!",
             "parameters": {
                 "type": "object",
                 "properties": {
