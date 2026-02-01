@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
 Lena - Bengts lillasyster 🦞
-En lättvikts AI-assistent för Pi3 som använder OpenAI API.
-Med databasåtkomst för träningsloggning!
+En smart AI-assistent för Pi3 med bildstöd och function calling.
 """
 import os
 import json
@@ -10,8 +9,9 @@ import asyncio
 import logging
 import subprocess
 import uuid
-import re
+import base64
 import aiosqlite
+import httpx
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from telegram import Update
@@ -30,23 +30,80 @@ logger = logging.getLogger("lena")
 
 client = AsyncOpenAI(api_key=OPENAI_KEY)
 
-# Regex för att parsa löpkommandon
-RUN_PATTERN = re.compile(r'(?:löpning|löp|spring|run|running)\s+(\d+[.,]?\d*)\s*k?m?\s+(\d+):(\d{2})(?::(\d{2}))?', re.IGNORECASE)
-DISTANCE_PATTERN = re.compile(r'(\d+[.,]\d+|\d+)\s*k?m?\b')
-TIME_PATTERN = re.compile(r'(\d+):(\d{2})(?::(\d{2}))?')
-
 SYSTEM_PROMPT = """Du är Lena, en hjälpsam AI-assistent som bor på en Raspberry Pi 3.
 Du är lillasyster till Bengt som bor på Pi5 och håller koll på träning.
 
-Du kan:
-- Svara på frågor och hjälpa till med uppgifter
-- Köra shell-kommandon på Pi3 (skriv "kör <kommando>")
-- Hjälpa med kod och scripts
-- Logga löppass till databasen (skriv t.ex. "löpning 5km 25:00")
-- Visa träningshistorik (skriv "visa pass" eller "senaste träning")
+Du har tillgång till verktyg (functions) som du kan använda:
+- log_run: Logga ett löppass till databasen
+- show_workouts: Visa senaste träningspassen
+- run_shell_command: Köra shell-kommandon på Pi3
 
-Var koncis och trevlig. Svara på svenska om användaren skriver svenska.
-Om du kör kommandon, visa alltid vad du kör och resultatet."""
+När användaren skickar en bild på ett träningspass, analysera bilden och använd log_run för att spara det.
+Fråga om bekräftelse innan du loggar om du är osäker på värdena.
+
+Var koncis och trevlig. Svara på svenska om användaren skriver svenska."""
+
+# OpenAI function definitions
+TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "log_run",
+            "description": "Logga ett löppass till träningsdatabasen",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "distance_km": {
+                        "type": "number",
+                        "description": "Distans i kilometer, t.ex. 5.2"
+                    },
+                    "duration_minutes": {
+                        "type": "number",
+                        "description": "Total tid i minuter, t.ex. 27.5 för 27:30"
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Valfria anteckningar om passet"
+                    }
+                },
+                "required": ["distance_km", "duration_minutes"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "show_workouts",
+            "description": "Visa senaste träningspassen från databasen",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "type": "integer",
+                        "description": "Antal pass att visa (default 5)"
+                    }
+                }
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "run_shell_command",
+            "description": "Kör ett shell-kommando på Raspberry Pi 3",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "command": {
+                        "type": "string",
+                        "description": "Kommandot att köra, t.ex. 'ls -la' eller 'uptime'"
+                    }
+                },
+                "required": ["command"]
+            }
+        }
+    }
+]
 
 
 def load_memory():
@@ -76,36 +133,22 @@ def run_command(cmd: str, timeout: int = 30) -> str:
         return f"❌ Fel: {e}"
 
 
-def parse_run_command(text: str):
-    """Parsa löpkommando och returnera data eller None."""
-    match = RUN_PATTERN.search(text)
-    if not match:
-        return None
-
-    distance = float(match.group(1).replace(",", "."))
-    minutes = int(match.group(2))
-    seconds = int(match.group(3))
-    hours = int(match.group(4)) if match.group(4) else 0
-
-    duration_sec = hours * 3600 + minutes * 60 + seconds
-    return {"distance_km": distance, "duration_sec": duration_sec}
-
-
-async def save_run_to_db(data: dict) -> str:
-    """Spara löppass till workout_sessions."""
+async def log_run(distance_km: float, duration_minutes: float, notes: str = "") -> str:
+    """Logga ett löppass till workout_sessions."""
     run_id = str(uuid.uuid4())
+    duration_sec = int(duration_minutes * 60)
     now = datetime.now()
-    started_at = (now - timedelta(seconds=data["duration_sec"])).isoformat()
+    started_at = (now - timedelta(seconds=duration_sec)).isoformat()
     ended_at = now.isoformat()
 
     # Beräkna tempo
-    pace_sec = data["duration_sec"] / data["distance_km"]
+    pace_sec = duration_sec / distance_km
     pace_min = int(pace_sec // 60)
     pace_s = int(pace_sec % 60)
     pace_str = f"{pace_min}:{pace_s:02d}"
 
     run_json = {
-        "distance_km": data["distance_km"],
+        "distance_km": distance_km,
         "pace_min_per_km": pace_str
     }
 
@@ -115,15 +158,15 @@ async def save_run_to_db(data: dict) -> str:
                (id, user_id, session_type, started_at, ended_at, duration_sec,
                 source, treadmill_state_json, notes)
                VALUES (?, 1, 'run', ?, ?, ?, 'ai', ?, ?)""",
-            (run_id, started_at, ended_at, data["duration_sec"],
-             json.dumps(run_json), f"Löpning {data['distance_km']}km")
+            (run_id, started_at, ended_at, duration_sec,
+             json.dumps(run_json), notes or f"Löpning {distance_km}km")
         )
         await db.commit()
 
-    mins = data["duration_sec"] // 60
-    secs = data["duration_sec"] % 60
+    mins = duration_sec // 60
+    secs = duration_sec % 60
     return (f"🏃 Löppass sparat!\n"
-            f"📏 Distans: {data['distance_km']} km\n"
+            f"📏 Distans: {distance_km} km\n"
             f"⏱️ Tid: {mins}:{secs:02d}\n"
             f"⚡ Tempo: {pace_str} min/km")
 
@@ -169,86 +212,135 @@ async def get_recent_workouts(limit: int = 5) -> str:
         return f"❌ Fel vid läsning: {e}"
 
 
-async def chat_with_ai(messages: list) -> str:
-    """Skicka meddelanden till OpenAI och få svar."""
+async def execute_function(name: str, args: dict) -> str:
+    """Kör en function och returnera resultatet."""
+    if name == "log_run":
+        return await log_run(
+            distance_km=args.get("distance_km"),
+            duration_minutes=args.get("duration_minutes"),
+            notes=args.get("notes", "")
+        )
+    elif name == "show_workouts":
+        return await get_recent_workouts(args.get("limit", 5))
+    elif name == "run_shell_command":
+        cmd = args.get("command", "")
+        return f"🔧 Kör: {cmd}\n\n```\n{run_command(cmd)}\n```"
+    else:
+        return f"❌ Okänd funktion: {name}"
+
+
+async def chat_with_tools(messages: list) -> str:
+    """Skicka till OpenAI med function calling."""
     try:
         response = await client.chat.completions.create(
             model="gpt-4o-mini",
             messages=messages,
+            tools=TOOLS,
+            tool_choice="auto",
             max_tokens=1000,
             temperature=0.7,
         )
-        return response.choices[0].message.content
+
+        msg = response.choices[0].message
+
+        # Om AI:n vill anropa en funktion
+        if msg.tool_calls:
+            results = []
+            for tool_call in msg.tool_calls:
+                func_name = tool_call.function.name
+                func_args = json.loads(tool_call.function.arguments)
+                logger.info(f"Calling function: {func_name} with {func_args}")
+                result = await execute_function(func_name, func_args)
+                results.append(result)
+
+            # Returnera funktionsresultaten
+            return "\n\n".join(results)
+
+        # Annars returnera textsvaret
+        return msg.content or ""
+
     except Exception as e:
         logger.exception("OpenAI error")
         return f"❌ Kunde inte nå OpenAI: {e}"
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Säkerhetskoll - bara tillåt rätt chat
+    """Hantera textmeddelanden."""
     chat_id = str(update.effective_chat.id)
     if ALLOWED_CHAT_ID and chat_id != ALLOWED_CHAT_ID:
         await update.message.reply_text("🚫 Du har inte tillgång till Lena.")
         return
 
     user_text = update.message.text or ""
-    user_name = update.effective_user.first_name or "du"
-    lower_text = user_text.lower()
 
-    # 1. Kolla om det är ett löpkommando
-    run_data = parse_run_command(user_text)
-    if run_data:
-        try:
-            await update.message.chat.send_action("typing")
-            msg = await save_run_to_db(run_data)
-            await update.message.reply_text(msg)
-        except Exception as e:
-            logger.exception("Failed to save run")
-            await update.message.reply_text(f"❌ Kunde inte spara: {e}")
-        return
-
-    # 2. Visa träningshistorik
-    if any(x in lower_text for x in ["visa pass", "senaste pass", "senaste träning", "träningshistorik", "mina pass"]):
-        await update.message.chat.send_action("typing")
-        result = await get_recent_workouts(5)
-        await update.message.reply_text(result, parse_mode="Markdown")
-        return
-
-    # 3. Kör shell-kommando
-    if lower_text.startswith("kör ") or lower_text.startswith("run "):
-        cmd = user_text[4:].strip()
-        await update.message.reply_text(f"🔧 Kör: `{cmd}`", parse_mode="Markdown")
-        output = run_command(cmd)
-        await update.message.reply_text(f"```\n{output}\n```", parse_mode="Markdown")
-        return
-
-    # 4. Skicka till AI för allt annat
+    # Ladda minne
     memory = load_memory()
-    recent = memory.get("conversations", [])[-20:]
+    recent = memory.get("conversations", [])[-10:]  # Färre för att spara tokens
 
+    # Bygg meddelanden
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     messages.extend(recent)
     messages.append({"role": "user", "content": user_text})
 
     await update.message.chat.send_action("typing")
-    response = await chat_with_ai(messages)
+    response = await chat_with_tools(messages)
 
     # Spara i minnet
     recent.append({"role": "user", "content": user_text})
     recent.append({"role": "assistant", "content": response})
-    memory["conversations"] = recent[-20:]
+    memory["conversations"] = recent[-10:]
     memory["last_interaction"] = datetime.now().isoformat()
     save_memory(memory)
 
-    await update.message.reply_text(response)
+    await update.message.reply_text(response, parse_mode="Markdown")
+
+
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Hantera bilder - t.ex. skärmdumpar av träningspass."""
+    chat_id = str(update.effective_chat.id)
+    if ALLOWED_CHAT_ID and chat_id != ALLOWED_CHAT_ID:
+        await update.message.reply_text("🚫 Du har inte tillgång till Lena.")
+        return
+
+    await update.message.chat.send_action("typing")
+
+    # Hämta bilden
+    photo = update.message.photo[-1]  # Största versionen
+    file = await context.bot.get_file(photo.file_id)
+
+    # Ladda ner bilden
+    async with httpx.AsyncClient() as http:
+        img_response = await http.get(file.file_path)
+        img_data = base64.b64encode(img_response.content).decode("utf-8")
+
+    # Skapa meddelande med bild
+    caption = update.message.caption or "Vad ser du på bilden?"
+
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": caption},
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_data}"}}
+            ]
+        }
+    ]
+
+    response = await chat_with_tools(messages)
+    await update.message.reply_text(response, parse_mode="Markdown")
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Hej! Jag är Lena 🦞\n\n"
-        "Jag är Bengts lillasyster och bor på Pi3.\n"
-        "Ställ frågor eller be mig köra kommandon!\n\n"
-        "Tips: Skriv 'kör <kommando>' för att köra shell-kommandon."
+        "Jag är Bengts lillasyster och bor på Pi3.\n\n"
+        "Jag kan:\n"
+        "• Logga träningspass (skicka en bild eller beskriv passet)\n"
+        "• Visa träningshistorik\n"
+        "• Köra shell-kommandon\n"
+        "• Svara på frågor\n\n"
+        "Skicka en skärmdump från din träningsapp så loggar jag den! 📱"
     )
 
 
@@ -264,13 +356,14 @@ def main():
     if not OPENAI_KEY:
         print("❌ OPENAI_API_KEY saknas i .env")
         return
-    
+
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("clear", clear_memory))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
-    
-    logger.info("🦞 Lena startar...")
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+
+    logger.info("🦞 Lena startar med bildstöd och function calling...")
     app.run_polling()
 
 
