@@ -529,9 +529,16 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
     });
     dayWorkouts.forEach(w => {
       if (!byUser[w.user_id]) byUser[w.user_id] = { user_name: w.user_name, user_id: w.user_id, items: [] };
-      // Use hiit_program_title for HIIT sessions, otherwise template_title or session_type
-      const title = w.hiit_program_title || w.template_title || w.session_type || 'Träning';
-      byUser[w.user_id].items.push({ type: 'workout', title, duration_sec: w.duration_sec, session_type: w.session_type });
+      // Build title based on session type
+      let title = w.hiit_program_title || w.template_title || w.session_type || 'Träning';
+      let runData = null;
+      if (w.session_type === 'run' && w.treadmill_state_json) {
+        try {
+          runData = typeof w.treadmill_state_json === 'string' ? JSON.parse(w.treadmill_state_json) : w.treadmill_state_json;
+          title = `🏃 Löpning ${runData.distance_km}km`;
+        } catch (e) { /* ignore */ }
+      }
+      byUser[w.user_id].items.push({ type: 'workout', title, duration_sec: w.duration_sec, session_type: w.session_type, runData });
     });
 
     const users = Object.values(byUser);
@@ -743,7 +750,11 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
                               ) : (
                                 <>
                                   <span className="item-name">{item.title}:</span>
-                                  <span className="item-value">{formatDuration(item.duration_sec)}</span>
+                                  <span className="item-value">
+                                    {item.runData?.pace_min_per_km
+                                      ? `${item.runData.pace_min_per_km} min/km`
+                                      : formatDuration(item.duration_sec)}
+                                  </span>
                                 </>
                               )}
                             </div>
