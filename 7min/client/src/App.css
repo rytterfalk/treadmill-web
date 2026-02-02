@@ -3752,3 +3752,41 @@ button.tiny {
   display: block;
   margin-bottom: 0.35rem;
 }
+
+/* Run Logger */
+.run-logger-panel .time-inputs {
+  display: flex;
+  gap: 1rem;
+}
+
+.run-logger-panel .time-inputs .setup-field {
+  flex: 1;
+}
+
+.run-logger-panel .pace-display {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+  margin: 0.5rem 0;
+}
+
+.run-logger-panel .pace-label {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.run-logger-panel .pace-value {
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: var(--accent);
+}
+
+.run-logger-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+}

@@ -573,6 +573,50 @@ app.post('/api/sessions', authRequired, (req, res) => {
   res.status(201).json({ sessionId: inserted.lastInsertRowid, workoutSessionId: workoutId });
 });
 
+// Log a run session
+app.post('/api/workout-sessions/run', authRequired, (req, res) => {
+  const { distance_km, duration_sec, notes = '', started_at = null } = req.body;
+
+  if (!distance_km || distance_km <= 0) {
+    return res.status(400).json({ error: 'Distans krävs' });
+  }
+  if (!duration_sec || duration_sec <= 0) {
+    return res.status(400).json({ error: 'Tid krävs' });
+  }
+
+  const distanceNum = Number(distance_km);
+  const durationNum = Math.round(Number(duration_sec));
+
+  // Calculate pace (min/km)
+  const paceMinPerKm = durationNum / 60 / distanceNum;
+  const paceMin = Math.floor(paceMinPerKm);
+  const paceSec = Math.round((paceMinPerKm - paceMin) * 60);
+  const paceStr = `${paceMin}:${String(paceSec).padStart(2, '0')}`;
+
+  const runJson = {
+    distance_km: distanceNum,
+    pace_min_per_km: paceStr,
+  };
+
+  const endDate = started_at ? new Date(started_at) : new Date();
+  const endIso = Number.isNaN(endDate.getTime()) ? new Date().toISOString() : endDate.toISOString();
+  const startIso = new Date(new Date(endIso).getTime() - durationNum * 1000).toISOString();
+
+  const workoutId = crypto.randomUUID();
+  db.prepare(
+    `INSERT INTO workout_sessions
+      (id, user_id, session_type, started_at, ended_at, duration_sec, notes, source, treadmill_state_json)
+     VALUES (?, ?, 'run', ?, ?, ?, ?, 'manual', ?)`
+  ).run(workoutId, req.user.id, startIso, endIso, durationNum, notes || `Löpning ${distanceNum}km`, JSON.stringify(runJson));
+
+  res.status(201).json({
+    workoutSessionId: workoutId,
+    distance_km: distanceNum,
+    duration_sec: durationNum,
+    pace: paceStr,
+  });
+});
+
 app.get('/api/sessions/recent', authRequired, (req, res) => {
   const rows = db
     .prepare(

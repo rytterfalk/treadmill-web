@@ -17,6 +17,7 @@ import AdminPanel from './components/AdminPanel';
 import CircuitEditor from './components/CircuitEditor';
 import CircuitTimer from './components/CircuitTimer';
 import ProfileSettings from './components/ProfileSettings';
+import RunLogger from './components/RunLogger';
 
 const defaultExercises = [
   { title: 'Jumping Jacks', durationSeconds: 30, restSeconds: 5, notes: '' },
@@ -1701,6 +1702,20 @@ function App() {
           onSaveDay={async (summary) => {
             loadSessions();
             setStatus('Daglig utmaning sparad!');
+            setTimeout(() => setStatus(''), 2000);
+          }}
+        />
+
+        {/* Run Logger */}
+        <RunLogger
+          onLogRun={async (data) => {
+            await api('/api/workout-sessions/run', {
+              method: 'POST',
+              body: JSON.stringify(data),
+            });
+            loadSessions();
+            loadDaySessions(getLocalDateString());
+            setStatus(`Löppass sparat! ${data.distance_km}km`);
             setTimeout(() => setStatus(''), 2000);
           }}
         />
