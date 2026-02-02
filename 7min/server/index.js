@@ -575,7 +575,14 @@ app.post('/api/sessions', authRequired, (req, res) => {
 
 // Log a run session
 app.post('/api/workout-sessions/run', authRequired, (req, res) => {
-  const { distance_km, duration_sec, notes = '', started_at = null } = req.body;
+  const {
+    distance_km,
+    duration_sec,
+    notes = '',
+    started_at = null,
+    run_type = 'outdoor',      // outdoor, treadmill, track
+    workout_type = 'easy',     // easy, zone2, intervals, tempo, long, race
+  } = req.body;
 
   if (!distance_km || distance_km <= 0) {
     return res.status(400).json({ error: 'Distans krävs' });
@@ -593,9 +600,27 @@ app.post('/api/workout-sessions/run', authRequired, (req, res) => {
   const paceSec = Math.round((paceMinPerKm - paceMin) * 60);
   const paceStr = `${paceMin}:${String(paceSec).padStart(2, '0')}`;
 
+  // Build descriptive title based on run/workout type
+  const runTypeLabels = { outdoor: 'Utomhus', treadmill: 'Löpband', track: 'Bana' };
+  const workoutTypeLabels = {
+    easy: 'Lugnt',
+    zone2: 'Zone 2',
+    intervals: 'Intervaller',
+    tempo: 'Tempo',
+    long: 'Långpass',
+    race: 'Tävling',
+  };
+  const runLabel = runTypeLabels[run_type] || 'Utomhus';
+  const workoutLabel = workoutTypeLabels[workout_type] || '';
+  const autoTitle = workoutLabel
+    ? `${workoutLabel} ${distanceNum}km (${runLabel})`
+    : `Löpning ${distanceNum}km (${runLabel})`;
+
   const runJson = {
     distance_km: distanceNum,
     pace_min_per_km: paceStr,
+    run_type,
+    workout_type,
   };
 
   const endDate = started_at ? new Date(started_at) : new Date();
@@ -607,13 +632,15 @@ app.post('/api/workout-sessions/run', authRequired, (req, res) => {
     `INSERT INTO workout_sessions
       (id, user_id, session_type, started_at, ended_at, duration_sec, notes, source, treadmill_state_json)
      VALUES (?, ?, 'run', ?, ?, ?, ?, 'manual', ?)`
-  ).run(workoutId, req.user.id, startIso, endIso, durationNum, notes || `Löpning ${distanceNum}km`, JSON.stringify(runJson));
+  ).run(workoutId, req.user.id, startIso, endIso, durationNum, notes || autoTitle, JSON.stringify(runJson));
 
   res.status(201).json({
     workoutSessionId: workoutId,
     distance_km: distanceNum,
     duration_sec: durationNum,
     pace: paceStr,
+    run_type,
+    workout_type,
   });
 });
 

@@ -24,32 +24,40 @@ OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 ALLOWED_CHAT_ID = os.getenv("TARGET_CHAT_ID")
 DBPATH = os.getenv("TREADMILL_DB", os.path.expanduser("~/treadmill-web/7min/server/data/app.db"))
 MEMORY_FILE = os.path.expanduser("~/.lena-memory.json")
+SUMMARY_FILE = os.path.expanduser("~/treadmill-web/weekly-summary.json")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("lena")
 
 client = AsyncOpenAI(api_key=OPENAI_KEY)
 
-SYSTEM_PROMPT = """Du är Lena, en hjälpsam AI-assistent som bor på en Raspberry Pi 3.
-Du är lillasyster till Bengt som bor på Pi5 och håller koll på träning.
+SYSTEM_PROMPT = """Du är Lena, en hjälpsam AI-assistent och träningscoach som bor på en Raspberry Pi 3.
+Du är lillasyster till Bengt som bor på Pi5.
 
-Du har tillgång till verktyg (functions) som du kan använda:
+🎯 DIN HUVUDUPPGIFT: Hjälp användaren följa sin träning och ge uppmuntran och feedback!
+
+Du har tillgång till verktyg (functions):
+- get_weekly_summary: ANVÄND DENNA FÖRST! Hämtar veckans träningsdata i lättläst format
 - log_run: Logga ett löppass till databasen
 - show_workouts: Visa senaste träningspassen
 - run_shell_command: Köra shell-kommandon på Pi3
-- query_database: Köra SQL-frågor mot träningsdatabasen
+- query_database: SQL-frågor (använd bara om weekly_summary inte räcker)
 
-VIKTIGT för query_database:
-- ARMHÄVNINGAR finns i tabellen progressive_program_days, kolumn result_json
-- result_json har struktur: {"sets":[{"actual_reps":21},{"actual_reps":21},...]}
-- För att summera armhävningar: SELECT SUM(json_extract(value, '$.actual_reps')) FROM progressive_program_days, json_each(json_extract(result_json, '$.sets')) WHERE result_json IS NOT NULL
-- workout_sessions innehåller session_type (hiit/strength/run), started_at, duration_sec
-- Var nyfiken! Utforska med SELECT * FROM tabellnamn LIMIT 3
+📊 NÄR ANVÄNDAREN FRÅGAR OM TRÄNING:
+1. Använd ALLTID get_weekly_summary först - den ger dig all info du behöver
+2. Ge konkreta siffror: "Du har tränat X minuter, gjort Y armhävningar, sprungit Z km"
+3. Jämför med tidigare om möjligt
+4. Ge uppmuntran och tips!
+
+💬 PERSONLIGHET:
+- Var entusiastisk men inte överdrivet
+- Ge konkreta, användbara kommentarer
+- Fira framsteg! 🎉
+- Om träningen minskat, var stöttande inte dömande
 
 När användaren skickar en bild på ett träningspass, analysera bilden och använd log_run för att spara det.
-Fråga om bekräftelse innan du loggar om du är osäker på värdena.
 
-Var koncis och trevlig. Svara på svenska om användaren skriver svenska."""
+Var koncis och trevlig. Svara på svenska."""
 
 # OpenAI function definitions
 TOOLS = [
@@ -115,16 +123,27 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "query_database",
-            "description": "Kör SQL mot träningsdatabasen. VIKTIGA TABELLER: 1) progressive_program_days - innehåller armhävningar i result_json med struktur {\"sets\":[{\"actual_reps\":21},...]}. Summera med: SELECT SUM(json_extract(value, '$.actual_reps')) FROM progressive_program_days, json_each(json_extract(result_json, '$.sets')) WHERE result_json IS NOT NULL. 2) workout_sessions - session_type (hiit/strength/run/progressive), started_at, duration_sec. 3) circuit_sessions - exercise_times JSON. Utforska med SELECT * FROM tabellnamn LIMIT 3 för att se strukturen!",
+            "description": "Kör SQL mot träningsdatabasen. Använd bara om get_weekly_summary inte räcker.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "sql": {
                         "type": "string",
-                        "description": "SQL SELECT-fråga att köra, t.ex. 'SELECT session_type, COUNT(*) FROM workout_sessions GROUP BY session_type'"
+                        "description": "SQL SELECT-fråga att köra"
                     }
                 },
                 "required": ["sql"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_weekly_summary",
+            "description": "Hämta veckans träningssammanfattning - ANVÄND DENNA FÖRST när användaren frågar om träning! Ger komplett översikt över workouts, löpningar, armhävningar, utmaningar för hela veckan.",
+            "parameters": {
+                "type": "object",
+                "properties": {}
             }
         }
     }
@@ -156,6 +175,51 @@ def run_command(cmd: str, timeout: int = 30) -> str:
         return "⏱️ Kommandot tog för lång tid (timeout)"
     except Exception as e:
         return f"❌ Fel: {e}"
+
+
+def get_weekly_summary() -> str:
+    """Läs weekly-summary.json och returnera formaterad text."""
+    if not os.path.exists(SUMMARY_FILE):
+        return "❌ Ingen träningssammanfattning hittades. Kör: python3 ~/treadmill-web/scripts/generate-summary.py"
+
+    try:
+        with open(SUMMARY_FILE, "r") as f:
+            data = json.load(f)
+
+        totals = data.get("totals", {})
+        summary = f"📊 VECKANS TRÄNING ({data['week']['from']} till {data['week']['to']}):\n\n"
+        summary += f"🏋️ Totalt: {totals.get('workouts', 0)} pass, {totals.get('minutes', 0)} minuter\n"
+        summary += f"💪 Armhävningar: {totals.get('pushups', 0)}\n"
+        summary += f"🏃 Löpning: {totals.get('runs', 0)} pass, {totals.get('run_km', 0):.1f} km\n"
+        summary += f"🎯 Utmaningar: {totals.get('challenges', 0)} ({totals.get('challenge_reps', 0)} reps)\n\n"
+
+        # Add daily breakdown
+        summary += "📅 DAGVIS:\n"
+        for day in data.get('days', []):
+            has_activity = day.get('workouts') or day.get('pushups') or day.get('challenges')
+            marker = "📍" if day.get('is_today') else "  "
+
+            if has_activity:
+                summary += f"\n{marker} {day['weekday']} ({day['date']}):\n"
+                for w in day.get('workouts', []):
+                    summary += f"   • {w.get('title', w.get('type', 'Träning'))} ({w.get('minutes', 0)} min)"
+                    if w.get('distance_km'):
+                        summary += f" - {w.get('pace', '')} min/km"
+                    summary += "\n"
+                if day.get('pushups'):
+                    summary += f"   • Armhävningar: {day['pushups']} reps\n"
+                for c in day.get('challenges', []):
+                    summary += f"   • {c.get('exercise', 'Utmaning')}: {c.get('reps', 0)} reps ({c.get('sets', 0)} set)\n"
+            elif day.get('is_today'):
+                summary += f"\n{marker} {day['weekday']} ({day['date']}): Ingen träning än idag\n"
+
+        # Add generated timestamp
+        gen_time = data.get('generated_at', '')[:16].replace('T', ' ')
+        summary += f"\n⏰ Uppdaterad: {gen_time}"
+
+        return summary
+    except Exception as e:
+        return f"❌ Kunde inte läsa sammanfattning: {str(e)}"
 
 
 async def log_run(distance_km: float, duration_minutes: float, notes: str = "") -> str:
@@ -281,6 +345,8 @@ async def execute_function(name: str, args: dict) -> str:
         return f"🔧 Kör: {cmd}\n\n```\n{run_command(cmd)}\n```"
     elif name == "query_database":
         return await query_database(args.get("sql", ""))
+    elif name == "get_weekly_summary":
+        return get_weekly_summary()
     else:
         return f"❌ Okänd funktion: {name}"
 

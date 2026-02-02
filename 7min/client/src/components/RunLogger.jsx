@@ -1,11 +1,28 @@
 import { useState } from 'react';
 
+const RUN_TYPES = [
+  { value: 'outdoor', label: '🌳 Utomhus', emoji: '🌳' },
+  { value: 'treadmill', label: '🏃 Löpband', emoji: '🏃' },
+  { value: 'track', label: '🏟️ Bana', emoji: '🏟️' },
+];
+
+const WORKOUT_TYPES = [
+  { value: 'easy', label: 'Lugnt pass' },
+  { value: 'zone2', label: 'Zone 2 (aerob)' },
+  { value: 'intervals', label: 'Intervaller' },
+  { value: 'tempo', label: 'Tempopass' },
+  { value: 'long', label: 'Långpass' },
+  { value: 'race', label: 'Tävling' },
+];
+
 function RunLogger({ onLogRun }) {
   const [expanded, setExpanded] = useState(false);
   const [distance, setDistance] = useState('');
   const [minutes, setMinutes] = useState('');
   const [seconds, setSeconds] = useState('');
   const [notes, setNotes] = useState('');
+  const [runType, setRunType] = useState('outdoor');
+  const [workoutType, setWorkoutType] = useState('easy');
   const [saving, setSaving] = useState(false);
 
   const distanceNum = parseFloat(distance) || 0;
@@ -26,13 +43,17 @@ function RunLogger({ onLogRun }) {
       await onLogRun({
         distance_km: distanceNum,
         duration_sec: durationSec,
-        notes: notes || `Löpning ${distanceNum}km`,
+        notes: notes || '',
+        run_type: runType,
+        workout_type: workoutType,
       });
       // Reset form
       setDistance('');
       setMinutes('');
       setSeconds('');
       setNotes('');
+      setRunType('outdoor');
+      setWorkoutType('easy');
       setExpanded(false);
     } catch (err) {
       alert(err.message);
@@ -109,6 +130,38 @@ function RunLogger({ onLogRun }) {
             <span className="pace-value">{paceStr} min/km</span>
           </div>
         )}
+
+        <div className="run-type-selector">
+          <span className="field-label">Var?</span>
+          <div className="toggle-buttons">
+            {RUN_TYPES.map(t => (
+              <button
+                key={t.value}
+                type="button"
+                className={`toggle-btn ${runType === t.value ? 'active' : ''}`}
+                onClick={() => setRunType(t.value)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="workout-type-selector">
+          <span className="field-label">Typ av pass</span>
+          <div className="toggle-buttons wrap">
+            {WORKOUT_TYPES.map(t => (
+              <button
+                key={t.value}
+                type="button"
+                className={`toggle-btn ${workoutType === t.value ? 'active' : ''}`}
+                onClick={() => setWorkoutType(t.value)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <label className="setup-field">
           <span>Anteckningar (valfritt)</span>

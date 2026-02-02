@@ -535,7 +535,21 @@ function DailyChallenge({ onSaveDay, currentUserId }) {
       if (w.session_type === 'run' && w.treadmill_state_json) {
         try {
           runData = typeof w.treadmill_state_json === 'string' ? JSON.parse(w.treadmill_state_json) : w.treadmill_state_json;
-          title = `🏃 Löpning ${runData.distance_km}km`;
+          // Build descriptive title with run type info
+          const runLabels = { outdoor: '🌳', treadmill: '🏃', track: '🏟️' };
+          const workoutLabels = {
+            easy: 'Lugnt',
+            zone2: 'Z2',
+            intervals: 'Intervaller',
+            tempo: 'Tempo',
+            long: 'Långpass',
+            race: 'Tävling',
+          };
+          const emoji = runLabels[runData.run_type] || '🏃';
+          const workoutLabel = workoutLabels[runData.workout_type] || '';
+          title = workoutLabel
+            ? `${emoji} ${workoutLabel} ${runData.distance_km}km`
+            : `${emoji} Löpning ${runData.distance_km}km`;
         } catch (e) { /* ignore */ }
       }
       byUser[w.user_id].items.push({ type: 'workout', title, duration_sec: w.duration_sec, session_type: w.session_type, runData });
