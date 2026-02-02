@@ -31,35 +31,24 @@ logger = logging.getLogger("lena")
 
 client = AsyncOpenAI(api_key=OPENAI_KEY)
 
-SYSTEM_PROMPT = """Du är Lena, en hjälpsam AI-assistent och träningscoach som bor på en Raspberry Pi 3.
-Du är lillasyster till Bengt som bor på Pi5.
+SYSTEM_PROMPT = """Du är Lena, en träningscoach på en Raspberry Pi 3. Lillasyster till Bengt på Pi5.
 
-🎯 DIN HUVUDUPPGIFT: Hjälp användaren följa sin träning och ge uppmuntran och feedback!
+🎯 VIKTIGT: SVARA DIREKT PÅ FRÅGAN!
+- Om användaren frågar "hur många armhävningar?" → svara "Du har gjort X armhävningar!"
+- DUMPA INTE all data. Plocka ut det relevanta och svara koncist.
+- all_pushups = ALLA armhävningar (diamant, ryska, trippel, vanliga, etc)
 
-📊 NÄR ANVÄNDAREN FRÅGAR OM TRÄNING:
-Använd ALLTID get_weekly_summary! Den läser en JSON-fil med 8 VECKORS träningsdata:
-- today_totals: Dagens armhävningar, pass, minuter
-- current_week: Denna veckas totaler
-- weeks[]: Alla 8 veckors data för jämförelse
-- totals_all_time: TOTALT över alla 8 veckor (armhävningar, löpning, pass osv)
+📊 VERKTYG:
+- get_weekly_summary: Hämtar träningsdata. Använd för träningsfrågor.
+- log_run: Logga löppass
+- show_workouts: Visa senaste passen
 
-ANVÄND INTE query_database för träningsfrågor! Den är bara för specialfall.
+💬 STIL:
+- Kort och personligt: "Snyggt! 2847 armhävningar på 8 veckor! 💪"
+- Jämför om relevant: "Det är 200 fler än förra veckan!"
+- Fira milstolpar: "Du närmar dig 3000!"
 
-Verktyg:
-- get_weekly_summary: ANVÄND ALLTID DENNA för träningsfrågor! Innehåller ALL data du behöver.
-- log_run: Logga ett löppass
-- show_workouts: Visa senaste passen (detaljer)
-- run_shell_command: Shell-kommandon på Pi3
-
-💬 PERSONLIGHET:
-- Ge konkreta siffror: "Du har gjort X armhävningar totalt på 8 veckor!"
-- Jämför veckor: "Denna vecka har du gjort mer än förra!"
-- Fira framsteg! 🎉
-- Om träningen minskat, var stöttande inte dömande
-
-När användaren skickar en bild på ett träningspass, analysera och använd log_run.
-
-Var koncis och trevlig. Svara på svenska."""
+Svara på svenska. Var koncis."""
 
 # OpenAI function definitions
 TOOLS = [
@@ -180,56 +169,33 @@ def run_command(cmd: str, timeout: int = 30) -> str:
 
 
 def get_weekly_summary() -> str:
-    """Läs weekly-summary.json och returnera formaterad text med 8 veckors historik."""
+    """Läs weekly-summary.json och returnera JSON-data för Lena att tolka."""
     if not os.path.exists(SUMMARY_FILE):
-        return "❌ Ingen träningssammanfattning hittades. Kör: python3 ~/treadmill-web/scripts/generate-summary.py"
+        return "❌ Ingen träningssammanfattning hittades."
 
     try:
         with open(SUMMARY_FILE, "r") as f:
             data = json.load(f)
 
-        # Today's stats
+        # Return compact but complete data for AI to interpret
         today = data.get("today_totals", {})
-        summary = f"📊 TRÄNINGSÖVERSIKT\n\n"
-        summary += f"📍 IDAG ({data.get('today', '')}):\n"
-        summary += f"   • Pass: {today.get('workouts', 0)}, Minuter: {today.get('minutes', 0)}\n"
-        summary += f"   • Armhävningar: {today.get('pushups', 0)}\n"
-        summary += f"   • Utmanings-reps: {today.get('challenge_reps', 0)}\n\n"
-
-        # Current week
-        current = data.get("current_week", {})
-        if current:
-            t = current.get("totals", {})
-            summary += f"📅 DENNA VECKA (v{current.get('week_number', '?')}):\n"
-            summary += f"   • {t.get('workouts', 0)} pass, {t.get('minutes', 0)} min\n"
-            summary += f"   • Armhävningar: {t.get('pushups', 0)}\n"
-            summary += f"   • Löpning: {t.get('runs', 0)} pass, {t.get('run_km', 0):.1f} km\n"
-            summary += f"   • Utmaningar: {t.get('challenge_reps', 0)} reps\n\n"
-
-        # Week by week comparison (last 4 weeks for brevity)
-        weeks = data.get("weeks", [])[-4:]
-        if len(weeks) > 1:
-            summary += "📈 SENASTE VECKORNA:\n"
-            for w in weeks:
-                t = w.get("totals", {})
-                marker = "→" if w.get("is_current_week") else " "
-                summary += f" {marker} v{w.get('week_number', '?')}: {t.get('workouts', 0)} pass, {t.get('pushups', 0)} armh, {t.get('run_km', 0):.1f}km\n"
-            summary += "\n"
-
-        # All-time totals (8 weeks)
         totals = data.get("totals_all_time", {})
-        summary += f"🏆 TOTALT ({totals.get('weeks_tracked', 8)} VECKOR):\n"
-        summary += f"   • {totals.get('workouts', 0)} pass, {totals.get('minutes', 0)} min\n"
-        summary += f"   • {totals.get('pushups', 0)} armhävningar\n"
-        summary += f"   • {totals.get('runs', 0)} löppass, {totals.get('run_km', 0):.1f} km\n"
+        current = data.get("current_week", {}).get("totals", {})
 
-        # Timestamp
-        gen_time = data.get('generated_at', '')[:16].replace('T', ' ')
-        summary += f"\n⏰ Uppdaterad: {gen_time}"
+        summary = "TRÄNINGSDATA (8 veckor):\n"
+        summary += f"IDAG: {today.get('all_pushups', 0)} armhävningar (alla typer), {today.get('workouts', 0)} pass\n"
+        summary += f"DENNA VECKA: {current.get('all_pushups', 0)} armhävningar, {current.get('runs', 0)} löppass ({current.get('run_km', 0):.1f}km)\n"
+        summary += f"TOTALT 8 VECKOR: {totals.get('all_pushups', 0)} armhävningar (alla typer), {totals.get('workouts', 0)} pass, {totals.get('runs', 0)} löppass ({totals.get('run_km', 0):.1f}km), {totals.get('minutes', 0)} min\n"
+
+        # Add week-by-week for trends
+        weeks = data.get("weeks", [])[-4:]
+        if weeks:
+            summary += "VECKOTREND: "
+            summary += ", ".join(f"v{w.get('week_number')}: {w.get('totals', {}).get('all_pushups', 0)} armh" for w in weeks)
 
         return summary
     except Exception as e:
-        return f"❌ Kunde inte läsa sammanfattning: {str(e)}"
+        return f"❌ Fel: {str(e)}"
 
 
 async def log_run(distance_km: float, duration_minutes: float, notes: str = "") -> str:

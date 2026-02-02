@@ -126,11 +126,22 @@ def get_day_data(conn, date_str, today_str):
     return day_data
 
 
+def is_pushup_exercise(name):
+    """Check if exercise name is a pushup variant."""
+    if not name:
+        return False
+    name_lower = name.lower()
+    # Match: armhävningar, pushups, diamant, ryska, trippel, etc
+    pushup_keywords = ["armhäv", "pushup", "push-up", "push up", "diamant", "rysk", "trippel", "triple", "wide", "close", "decline", "incline"]
+    return any(kw in name_lower for kw in pushup_keywords)
+
+
 def calculate_week_totals(days):
     """Calculate totals for a week from day data."""
-    totals = {"workouts": 0, "minutes": 0, "pushups": 0, "runs": 0, "run_km": 0.0, "challenges": 0, "challenge_reps": 0}
+    totals = {"workouts": 0, "minutes": 0, "pushups": 0, "runs": 0, "run_km": 0.0, "challenges": 0, "challenge_reps": 0, "all_pushups": 0}
     for day in days:
         totals["pushups"] += day["pushups"]
+        totals["all_pushups"] += day["pushups"]  # From progressive programs
         for w in day["workouts"]:
             totals["workouts"] += 1
             totals["minutes"] += w.get("minutes", 0)
@@ -140,6 +151,9 @@ def calculate_week_totals(days):
         for c in day["challenges"]:
             totals["challenges"] += 1
             totals["challenge_reps"] += c.get("reps", 0)
+            # Count pushup-type challenges
+            if is_pushup_exercise(c.get("exercise", "")):
+                totals["all_pushups"] += c.get("reps", 0)
     return totals
 
 
@@ -186,7 +200,9 @@ def generate_summary():
 
     # Calculate today's totals (for milestone tracking)
     today_data = get_day_data(conn, today_str, today_str)
-    today_pushups = today_data["pushups"] + sum(c["reps"] for c in today_data["challenges"] if "armhäv" in c.get("exercise", "").lower())
+    today_all_pushups = today_data["pushups"] + sum(
+        c["reps"] for c in today_data["challenges"] if is_pushup_exercise(c.get("exercise", ""))
+    )
 
     conn.close()
 
@@ -199,6 +215,7 @@ def generate_summary():
             "minutes": sum(w.get("minutes", 0) for w in today_data["workouts"]),
             "pushups": today_data["pushups"],
             "challenge_reps": sum(c.get("reps", 0) for c in today_data["challenges"]),
+            "all_pushups": today_all_pushups,  # All pushup variants combined
         },
         "current_week": weeks[-1] if weeks else None,  # Most recent week
         "weeks": weeks,
@@ -207,6 +224,7 @@ def generate_summary():
             "workouts": sum(w["totals"]["workouts"] for w in weeks),
             "minutes": sum(w["totals"]["minutes"] for w in weeks),
             "pushups": sum(w["totals"]["pushups"] for w in weeks),
+            "all_pushups": sum(w["totals"]["all_pushups"] for w in weeks),  # All pushup variants
             "runs": sum(w["totals"]["runs"] for w in weeks),
             "run_km": sum(w["totals"]["run_km"] for w in weeks),
             "challenge_reps": sum(w["totals"]["challenge_reps"] for w in weeks),
