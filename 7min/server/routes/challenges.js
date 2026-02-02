@@ -1,6 +1,7 @@
 const express = require('express');
 const { db } = require('../db');
 const { authRequired } = require('../auth');
+const { regenerateSummary } = require('../lib/summary');
 
 const router = express.Router();
 
@@ -218,6 +219,8 @@ router.post('/', authRequired, (req, res) => {
   `);
   const result = stmt.run(req.user.id, today, exercise, isTimed ? 0 : targetReps, intervalMinutes, isTimed ? 1 : 0, isTimed ? targetSeconds : null);
 
+  regenerateSummary(); // Update Lena's training summary
+
   const challenge = db.prepare('SELECT * FROM daily_challenges WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json({ challenge });
 });
@@ -245,6 +248,8 @@ router.post('/:id/sets', authRequired, (req, res) => {
     VALUES (?, ?, ?, ?)
   `);
   stmt.run(id, challenge.is_timed ? 0 : (reps || 0), challenge.is_timed ? (seconds || 0) : null, retroactive ? 1 : 0);
+
+  regenerateSummary(); // Update Lena's training summary
 
   // Return updated stats
   const stats = db.prepare(`

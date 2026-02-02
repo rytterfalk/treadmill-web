@@ -178,7 +178,7 @@ def run_command(cmd: str, timeout: int = 30) -> str:
 
 
 def get_weekly_summary() -> str:
-    """Läs weekly-summary.json och returnera formaterad text."""
+    """Läs weekly-summary.json och returnera formaterad text med 8 veckors historik."""
     if not os.path.exists(SUMMARY_FILE):
         return "❌ Ingen träningssammanfattning hittades. Kör: python3 ~/treadmill-web/scripts/generate-summary.py"
 
@@ -186,34 +186,42 @@ def get_weekly_summary() -> str:
         with open(SUMMARY_FILE, "r") as f:
             data = json.load(f)
 
-        totals = data.get("totals", {})
-        summary = f"📊 VECKANS TRÄNING ({data['week']['from']} till {data['week']['to']}):\n\n"
-        summary += f"🏋️ Totalt: {totals.get('workouts', 0)} pass, {totals.get('minutes', 0)} minuter\n"
-        summary += f"💪 Armhävningar: {totals.get('pushups', 0)}\n"
-        summary += f"🏃 Löpning: {totals.get('runs', 0)} pass, {totals.get('run_km', 0):.1f} km\n"
-        summary += f"🎯 Utmaningar: {totals.get('challenges', 0)} ({totals.get('challenge_reps', 0)} reps)\n\n"
+        # Today's stats
+        today = data.get("today_totals", {})
+        summary = f"📊 TRÄNINGSÖVERSIKT\n\n"
+        summary += f"📍 IDAG ({data.get('today', '')}):\n"
+        summary += f"   • Pass: {today.get('workouts', 0)}, Minuter: {today.get('minutes', 0)}\n"
+        summary += f"   • Armhävningar: {today.get('pushups', 0)}\n"
+        summary += f"   • Utmanings-reps: {today.get('challenge_reps', 0)}\n\n"
 
-        # Add daily breakdown
-        summary += "📅 DAGVIS:\n"
-        for day in data.get('days', []):
-            has_activity = day.get('workouts') or day.get('pushups') or day.get('challenges')
-            marker = "📍" if day.get('is_today') else "  "
+        # Current week
+        current = data.get("current_week", {})
+        if current:
+            t = current.get("totals", {})
+            summary += f"📅 DENNA VECKA (v{current.get('week_number', '?')}):\n"
+            summary += f"   • {t.get('workouts', 0)} pass, {t.get('minutes', 0)} min\n"
+            summary += f"   • Armhävningar: {t.get('pushups', 0)}\n"
+            summary += f"   • Löpning: {t.get('runs', 0)} pass, {t.get('run_km', 0):.1f} km\n"
+            summary += f"   • Utmaningar: {t.get('challenge_reps', 0)} reps\n\n"
 
-            if has_activity:
-                summary += f"\n{marker} {day['weekday']} ({day['date']}):\n"
-                for w in day.get('workouts', []):
-                    summary += f"   • {w.get('title', w.get('type', 'Träning'))} ({w.get('minutes', 0)} min)"
-                    if w.get('distance_km'):
-                        summary += f" - {w.get('pace', '')} min/km"
-                    summary += "\n"
-                if day.get('pushups'):
-                    summary += f"   • Armhävningar: {day['pushups']} reps\n"
-                for c in day.get('challenges', []):
-                    summary += f"   • {c.get('exercise', 'Utmaning')}: {c.get('reps', 0)} reps ({c.get('sets', 0)} set)\n"
-            elif day.get('is_today'):
-                summary += f"\n{marker} {day['weekday']} ({day['date']}): Ingen träning än idag\n"
+        # Week by week comparison (last 4 weeks for brevity)
+        weeks = data.get("weeks", [])[-4:]
+        if len(weeks) > 1:
+            summary += "📈 SENASTE VECKORNA:\n"
+            for w in weeks:
+                t = w.get("totals", {})
+                marker = "→" if w.get("is_current_week") else " "
+                summary += f" {marker} v{w.get('week_number', '?')}: {t.get('workouts', 0)} pass, {t.get('pushups', 0)} armh, {t.get('run_km', 0):.1f}km\n"
+            summary += "\n"
 
-        # Add generated timestamp
+        # All-time totals (8 weeks)
+        totals = data.get("totals_all_time", {})
+        summary += f"🏆 TOTALT ({totals.get('weeks_tracked', 8)} VECKOR):\n"
+        summary += f"   • {totals.get('workouts', 0)} pass, {totals.get('minutes', 0)} min\n"
+        summary += f"   • {totals.get('pushups', 0)} armhävningar\n"
+        summary += f"   • {totals.get('runs', 0)} löppass, {totals.get('run_km', 0):.1f} km\n"
+
+        # Timestamp
         gen_time = data.get('generated_at', '')[:16].replace('T', ' ')
         summary += f"\n⏰ Uppdaterad: {gen_time}"
 

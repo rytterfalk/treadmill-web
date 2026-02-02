@@ -2,6 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const { db } = require('../db');
 const { authRequired } = require('../auth');
+const { regenerateSummary } = require('../lib/summary');
 
 const router = express.Router();
 
@@ -686,6 +687,8 @@ router.post('/program-days/:id/complete', authRequired, (req, res) => {
           (id, user_id, template_id, session_type, started_at, ended_at, duration_sec, notes, source, treadmill_state_json, program_day_id)
          VALUES (?, ?, NULL, 'progressive', ?, ?, ?, '', 'manual', NULL, ?)`
       ).run(workoutId, req.user.id, startIso, endIso, durationSec, row.day_id);
+
+      regenerateSummary(); // Update Lena's training summary
     }
 
     const nextDay = db
@@ -800,6 +803,7 @@ router.post('/program-days/:id/test', authRequired, (req, res) => {
 
   try {
     tx();
+    regenerateSummary(); // Update Lena's training summary
   } catch (err) {
     return res.status(400).json({ error: err.message || 'Kunde inte spara test' });
   }

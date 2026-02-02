@@ -14,6 +14,7 @@ const { router: challengesRouter } = require('./routes/challenges');
 const { router: adminRouter } = require('./routes/admin');
 const { router: circuitRouter } = require('./routes/circuit');
 const { router: exportRouter } = require('./routes/export');
+const { regenerateSummary } = require('./lib/summary');
 const {
   authRequired,
   createToken,
@@ -570,6 +571,8 @@ app.post('/api/sessions', authRequired, (req, res) => {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL, ?)`
   ).run(workoutId, req.user.id, null, type, startIso, endIso, durationSec, notes || '', programTitle || null);
 
+  regenerateSummary(); // Update Lena's training summary
+
   res.status(201).json({ sessionId: inserted.lastInsertRowid, workoutSessionId: workoutId });
 });
 
@@ -633,6 +636,8 @@ app.post('/api/workout-sessions/run', authRequired, (req, res) => {
       (id, user_id, session_type, started_at, ended_at, duration_sec, notes, source, treadmill_state_json)
      VALUES (?, ?, 'run', ?, ?, ?, ?, 'manual', ?)`
   ).run(workoutId, req.user.id, startIso, endIso, durationNum, notes || autoTitle, JSON.stringify(runJson));
+
+  regenerateSummary(); // Update Lena's training summary
 
   res.status(201).json({
     workoutSessionId: workoutId,
