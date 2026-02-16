@@ -131,10 +131,15 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "get_weekly_summary",
-            "description": "Hämta veckans träningssammanfattning - ANVÄND DENNA FÖRST när användaren frågar om träning! Ger komplett översikt över workouts, löpningar, armhävningar, utmaningar för hela veckan.",
+            "description": "Hämta träningssammanfattning - ANVÄND DENNA FÖRST! Kan hämta data för specifik användare om namn anges.",
             "parameters": {
                 "type": "object",
-                "properties": {}
+                "properties": {
+                    "user_name": {
+                        "type": "string",
+                        "description": "Namn på användare (t.ex. 'Carl', 'Sven'). Utelämna för default-användare."
+                    }
+                }
             }
         }
     }
@@ -168,8 +173,8 @@ def run_command(cmd: str, timeout: int = 30) -> str:
         return f"❌ Fel: {e}"
 
 
-def get_weekly_summary() -> str:
-    """Läs weekly-summary.json och returnera JSON-data för Lena att tolka."""
+def get_weekly_summary(user_name: str = None) -> str:
+    """Läs weekly-summary.json och returnera data för specifik användare."""
     if not os.path.exists(SUMMARY_FILE):
         return "❌ Ingen träningssammanfattning hittades."
 
@@ -177,25 +182,50 @@ def get_weekly_summary() -> str:
         with open(SUMMARY_FILE, "r") as f:
             data = json.load(f)
 
-        # Return compact but complete data for AI to interpret
-        today = data.get("today_totals", {})
-        totals = data.get("totals_all_time", {})
-        current = data.get("current_week", {}).get("totals", {})
+        users = data.get("users", {})
+        if not users:
+            return "❌ Ingen användardata hittades."
 
-        summary = "TRÄNINGSDATA (8 veckor):\n"
-        summary += f"IDAG: {today.get('all_pushups', 0)} armhävningar (alla typer), {today.get('workouts', 0)} pass\n"
-        summary += f"DENNA VECKA: {current.get('all_pushups', 0)} armhävningar, {current.get('runs', 0)} löppass ({current.get('run_km', 0):.1f}km)\n"
-        summary += f"TOTALT 8 VECKOR: {totals.get('all_pushups', 0)} armhävningar (alla typer), {totals.get('workouts', 0)} pass, {totals.get('runs', 0)} löppass ({totals.get('run_km', 0):.1f}km), {totals.get('minutes', 0)} min\n"
+        # If user specified, get that user's data
+        if user_name:
+            key = user_name.lower()
+            if key not in users:
+                return f"❌ Hittade ingen användare '{user_name}'. Tillgängliga: {', '.join(users.keys())}"
+            user_data = users[key]
+            return format_user_summary(user_name, user_data)
 
-        # Add week-by-week for trends
-        weeks = data.get("weeks", [])[-4:]
-        if weeks:
-            summary += "VECKOTREND: "
-            summary += ", ".join(f"v{w.get('week_number')}: {w.get('totals', {}).get('all_pushups', 0)} armh" for w in weeks)
+        # Default: return first user (usually "carl") or list all
+        if len(users) == 1:
+            name, user_data = list(users.items())[0]
+            return format_user_summary(name, user_data)
 
-        return summary
+        # Multiple users - return primary user (carl) or first
+        primary = users.get("carl") or list(users.values())[0]
+        primary_name = "carl" if "carl" in users else list(users.keys())[0]
+        return format_user_summary(primary_name, primary)
+
     except Exception as e:
         return f"❌ Fel: {str(e)}"
+
+
+def format_user_summary(name: str, data: dict) -> str:
+    """Format user data as compact summary."""
+    today = data.get("today_totals", {})
+    totals = data.get("totals_all_time", {})
+    current = data.get("current_week", {}).get("totals", {})
+
+    summary = f"TRÄNINGSDATA för {name.upper()} (8 veckor):\n"
+    summary += f"IDAG: {today.get('all_pushups', 0)} armhävningar, {today.get('workouts', 0)} pass\n"
+    summary += f"DENNA VECKA: {current.get('all_pushups', 0)} armhävningar, {current.get('runs', 0)} löppass ({current.get('run_km', 0):.1f}km)\n"
+    summary += f"TOTALT: {totals.get('all_pushups', 0)} armhävningar, {totals.get('workouts', 0)} pass, {totals.get('runs', 0)} löppass ({totals.get('run_km', 0):.1f}km)\n"
+
+    # Week trend
+    weeks = data.get("weeks", [])[-4:]
+    if weeks:
+        summary += "VECKOTREND: "
+        summary += ", ".join(f"v{w.get('week_number')}: {w.get('totals', {}).get('all_pushups', 0)} armh" for w in weeks)
+
+    return summary
 
 
 async def log_run(distance_km: float, duration_minutes: float, notes: str = "") -> str:
@@ -322,7 +352,7 @@ async def execute_function(name: str, args: dict) -> str:
     elif name == "query_database":
         return await query_database(args.get("sql", ""))
     elif name == "get_weekly_summary":
-        return get_weekly_summary()
+        return get_weekly_summary(args.get("user_name"))
     else:
         return f"❌ Okänd funktion: {name}"
 

@@ -41,8 +41,8 @@ def parse_pushups(result_json):
     return 0
 
 
-def get_day_data(conn, date_str, today_str):
-    """Get all training data for a specific date."""
+def get_day_data(conn, date_str, today_str, user_id=1):
+    """Get all training data for a specific date for a specific user."""
     day_data = {
         "date": date_str,
         "weekday": datetime.fromisoformat(date_str).strftime("%A"),
@@ -52,15 +52,16 @@ def get_day_data(conn, date_str, today_str):
         "challenges": [],
     }
 
-    # Get workout sessions
+    # Get workout sessions (filtered by user_id)
     workouts = conn.execute("""
         SELECT ws.session_type, ws.duration_sec, ws.notes, ws.treadmill_state_json,
                ws.hiit_program_title, wt.title as template_title
         FROM workout_sessions ws
         LEFT JOIN workout_templates wt ON wt.id = ws.template_id
         WHERE date(COALESCE(ws.started_at, ws.ended_at, ws.created_at), 'localtime') = ?
+          AND ws.user_id = ?
         ORDER BY ws.started_at
-    """, (date_str,)).fetchall()
+    """, (date_str, user_id)).fetchall()
 
     for w in workouts:
         workout = {
@@ -94,26 +95,26 @@ def get_day_data(conn, date_str, today_str):
 
         day_data["workouts"].append(workout)
 
-    # Get progressive program (pushups etc)
+    # Get progressive program (pushups etc) - filtered by user_id
     pushups = conn.execute("""
         SELECT ppd.result_json, pp.exercise_key
         FROM progressive_program_days ppd
         JOIN progressive_programs pp ON pp.id = ppd.program_id
-        WHERE ppd.date = ? AND ppd.result_json IS NOT NULL
-    """, (date_str,)).fetchall()
+        WHERE ppd.date = ? AND ppd.result_json IS NOT NULL AND pp.user_id = ?
+    """, (date_str, user_id)).fetchall()
 
     for p in pushups:
         day_data["pushups"] += parse_pushups(p["result_json"])
 
-    # Get daily challenges
+    # Get daily challenges - filtered by user_id
     challenges = conn.execute("""
         SELECT dc.exercise, dc.target_reps, dc.is_timed,
                (SELECT COALESCE(SUM(reps), 0) FROM daily_challenge_sets WHERE challenge_id = dc.id) as total_reps,
                (SELECT COALESCE(SUM(seconds), 0) FROM daily_challenge_sets WHERE challenge_id = dc.id) as total_seconds,
                (SELECT COUNT(*) FROM daily_challenge_sets WHERE challenge_id = dc.id) as sets_count
         FROM daily_challenges dc
-        WHERE dc.date = ?
-    """, (date_str,)).fetchall()
+        WHERE dc.date = ? AND dc.user_id = ?
+    """, (date_str, user_id)).fetchall()
 
     for c in challenges:
         day_data["challenges"].append({
@@ -157,37 +158,20 @@ def calculate_week_totals(days):
     return totals
 
 
-def generate_summary():
-    """Generate training summary with 8 weeks of history."""
-    if not DB_PATH.exists():
-        print(f"Database not found: {DB_PATH}")
-        return
-
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-
-    today = datetime.now().date()
-    today_str = today.isoformat()
-
-    # Calculate date range: 8 weeks back from current week's Monday
-    current_monday = today - timedelta(days=today.weekday())
-    start_date = current_monday - timedelta(weeks=WEEKS_OF_HISTORY - 1)
-
-    # Build weeks structure
+def generate_user_summary(conn, user_id, user_name, today, today_str, current_monday, start_date):
+    """Generate summary for a single user."""
     weeks = []
     for week_offset in range(WEEKS_OF_HISTORY):
         week_monday = start_date + timedelta(weeks=week_offset)
         week_sunday = week_monday + timedelta(days=6)
         week_num = week_monday.isocalendar()[1]
-
         is_current_week = week_monday == current_monday
 
-        # Get all days in this week
         days = []
         for day_offset in range(7):
             day_date = week_monday + timedelta(days=day_offset)
-            if day_date <= today:  # Don't include future dates
-                days.append(get_day_data(conn, day_date.isoformat(), today_str))
+            if day_date <= today:
+                days.append(get_day_data(conn, day_date.isoformat(), today_str, user_id))
 
         weeks.append({
             "week_number": week_num,
@@ -198,48 +182,81 @@ def generate_summary():
             "totals": calculate_week_totals(days),
         })
 
-    # Calculate today's totals (for milestone tracking)
-    today_data = get_day_data(conn, today_str, today_str)
+    today_data = get_day_data(conn, today_str, today_str, user_id)
     today_all_pushups = today_data["pushups"] + sum(
         c["reps"] for c in today_data["challenges"] if is_pushup_exercise(c.get("exercise", ""))
     )
 
-    conn.close()
-
-    # Build final summary
-    summary = {
-        "generated_at": datetime.now().isoformat(),
-        "today": today_str,
+    return {
+        "name": user_name,
         "today_totals": {
             "workouts": len(today_data["workouts"]),
             "minutes": sum(w.get("minutes", 0) for w in today_data["workouts"]),
             "pushups": today_data["pushups"],
             "challenge_reps": sum(c.get("reps", 0) for c in today_data["challenges"]),
-            "all_pushups": today_all_pushups,  # All pushup variants combined
+            "all_pushups": today_all_pushups,
         },
-        "current_week": weeks[-1] if weeks else None,  # Most recent week
+        "current_week": weeks[-1] if weeks else None,
         "weeks": weeks,
         "totals_all_time": {
             "weeks_tracked": len(weeks),
             "workouts": sum(w["totals"]["workouts"] for w in weeks),
             "minutes": sum(w["totals"]["minutes"] for w in weeks),
             "pushups": sum(w["totals"]["pushups"] for w in weeks),
-            "all_pushups": sum(w["totals"]["all_pushups"] for w in weeks),  # All pushup variants
+            "all_pushups": sum(w["totals"]["all_pushups"] for w in weeks),
             "runs": sum(w["totals"]["runs"] for w in weeks),
             "run_km": sum(w["totals"]["run_km"] for w in weeks),
             "challenge_reps": sum(w["totals"]["challenge_reps"] for w in weeks),
         },
     }
 
+
+def generate_summary():
+    """Generate training summary with 8 weeks of history for all users."""
+    if not DB_PATH.exists():
+        print(f"Database not found: {DB_PATH}")
+        return
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+
+    today = datetime.now().date()
+    today_str = today.isoformat()
+    current_monday = today - timedelta(days=today.weekday())
+    start_date = current_monday - timedelta(weeks=WEEKS_OF_HISTORY - 1)
+
+    # Get all users
+    users = conn.execute("SELECT id, name FROM users").fetchall()
+    if not users:
+        users = [(1, "Användare")]  # Fallback if no users table
+
+    # Generate summary for each user
+    users_data = {}
+    for user in users:
+        user_id = user["id"] if isinstance(user, sqlite3.Row) else user[0]
+        user_name = user["name"] if isinstance(user, sqlite3.Row) else user[1]
+        # Use lowercase name as key for easy lookup
+        key = user_name.lower()
+        users_data[key] = generate_user_summary(conn, user_id, user_name, today, today_str, current_monday, start_date)
+
+    conn.close()
+
+    # Build final summary with all users
+    summary = {
+        "generated_at": datetime.now().isoformat(),
+        "today": today_str,
+        "users": users_data,
+    }
+
     # Write output
     with open(OUTPUT_PATH, "w") as f:
         json.dump(summary, f, indent=2, ensure_ascii=False)
 
-    current = weeks[-1]["totals"] if weeks else {}
     print(f"✅ Summary written to {OUTPUT_PATH}")
-    print(f"   Denna vecka: {current.get('workouts', 0)} pass, {current.get('minutes', 0)} min, {current.get('pushups', 0)} armhävningar")
-    print(f"   Idag: {today_pushups} armhävningar/reps")
-    print(f"   Totalt ({WEEKS_OF_HISTORY} veckor): {summary['totals_all_time']['workouts']} pass")
+    print(f"   Användare: {', '.join(users_data.keys())}")
+    for name, data in users_data.items():
+        totals = data.get("totals_all_time", {})
+        print(f"   {name}: {totals.get('all_pushups', 0)} armhävningar, {totals.get('workouts', 0)} pass")
 
 
 if __name__ == "__main__":
